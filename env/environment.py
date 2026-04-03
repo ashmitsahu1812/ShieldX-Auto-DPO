@@ -3,14 +3,19 @@ from env.models import Observation, Action, Reward, Info
 from env.tasks import get_task
 
 class CodeReviewEnv:
-    def __init__(self, task_type: str = "syntax_review", task_index: int = 0, max_steps: int = 8):
+    def __init__(self, task_type: str = "syntax_review", task_index: int = 0, max_steps: int = 8, custom_data: dict = None):
         self.task_type = task_type
         self.task_index = task_index
         self.max_steps = max_steps
+        self.custom_data = custom_data
         self.reset()
         
     def reset(self) -> Observation:
-        self.task_data = get_task(self.task_type, self.task_index)
+        if self.task_type == "custom" and self.custom_data:
+            self.task_data = self.custom_data
+        else:
+            self.task_data = get_task(self.task_type, self.task_index)
+            
         self.step_count = 0
         self.comments_history = []
         self.actions_history = []

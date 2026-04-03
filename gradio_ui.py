@@ -22,7 +22,44 @@ def reset_env(task_type, task_index):
         "Ready for review.",
         0.0,
         False,
-        []
+        [],
+        gr.update(selected=0) # Switch to Overview tab on reset
+    )
+
+def handle_custom_reset(title, desc, filename, diff, bug_file, bug_line, bug_desc):
+    global env
+    # Construct a custom task dictionary
+    custom_data = {
+        "pr_id": f"custom-{uuid.uuid4().hex[:6]}",
+        "title": title or "Custom PR Review",
+        "description": desc or "No description provided.",
+        "files_changed": [
+            {"filename": filename or "main.py", "diff": diff or ""}
+        ],
+        "expected_bugs": [
+            {
+                "file": bug_file or filename or "main.py",
+                "line": int(bug_line) if bug_line else 0,
+                "type": "custom_bug",
+                "description": bug_desc or "User defined bug."
+            }
+        ],
+        "expected_action": "request_changes"
+    }
+    
+    env = CodeReviewEnv(task_type="custom", custom_data=custom_data)
+    obs = env.state()
+    
+    files_display = f"### 📄 {filename or 'main.py'}\n```diff\n{diff}\n```\n\n"
+    
+    return (
+        f"## {obs.title}\n{obs.description}",
+        files_display,
+        "Custom challenge loaded. Start review!",
+        0.0,
+        False,
+        [],
+        gr.update(selected=0) # Switch to Overview tab on reset
     )
 
 def handle_action(action_type, comment, file_name, line_num):
@@ -107,6 +144,23 @@ with gr.Blocks(theme=gr.themes.Soft(), title="OpenEnv Code Review Dashboard") as
                         datatype=["str", "str", "str", "number"]
                     )
                     is_done = gr.Checkbox(label="Done?", interactive=False)
+                
+                with gr.TabItem("🛠️ Custom PR Creator"):
+                    gr.Markdown("### 🔨 Create Your Own Evaluation Task")
+                    with gr.Row():
+                        cust_title = gr.Textbox(label="PR Title", placeholder="e.g., Fix security vulnerability")
+                        cust_filename = gr.Textbox(label="File Name", placeholder="auth.py")
+                    cust_desc = gr.Textbox(label="PR Description", lines=2)
+                    cust_diff = gr.Code(label="Unified Diff (.patch style)", language="diff", lines=10)
+                    
+                    gr.Markdown("---")
+                    gr.Markdown("### 🎯 Grader Metadata (How to score)")
+                    with gr.Row():
+                        bug_file = gr.Textbox(label="Bug File Name", placeholder="auth.py")
+                        bug_line = gr.Number(label="Bug Line Number", value=0, precision=0)
+                    bug_desc = gr.Textbox(label="Bug Description (Expected Explanation)")
+                    
+                    load_custom_btn = gr.Button("🚀 Load Custom Challenge", variant="primary")
 
     # --- Event Handlers ---
     reset_btn.click(
@@ -119,6 +173,12 @@ with gr.Blocks(theme=gr.themes.Soft(), title="OpenEnv Code Review Dashboard") as
         handle_action,
         inputs=[action_type, comment_input, file_input, line_input],
         outputs=[status_output, score_output, is_done, history_table]
+    )
+    
+    load_custom_btn.click(
+        handle_custom_reset,
+        inputs=[cust_title, cust_desc, cust_filename, cust_diff, bug_file, bug_line, bug_desc],
+        outputs=[pr_info, diff_view, status_output, score_output, is_done, history_table]
     )
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ pinned: false
 *   **Real-World Workflow**: Simulates the daily life of a Senior Software Engineer (inspecting diffs, commenting, and making final decisions).
 *   **Adversarial Focus**: Includes specialized tasks where code *looks* correct but contains hidden logic holes or security vulnerabilities.
 *   **Hacker-Proof Graders**: A deterministic reward system that penalizes "keyword dumping" and rewards deep, qualitative explanations (min 10 words).
+*   **Custom Task Upload**: Explicit support for uploading and testing your own private PRs and codebases directly through the UI or API.
 *   **Dual-Mode Interface**: 
     *   **API Mode**: FastAPI endpoints (`/reset`, `/step`) for automated RL agent training and evaluation.
     *   **Visual Mode**: A beautiful Gradio dashboard for manual human auditing and debugging.
@@ -64,11 +65,17 @@ Information provided to the agent at each step:
 pip install -e .
 
 # Start the API & Visual Dashboard
-uvicorn server.app:main --port 7860
+uvicorn app:app --port 7860
 ```
 Visit `http://localhost:7860` to access the interactive Gradio UI.
 
-### 2. Running the AI Baseline
+### 2. Testing Custom Code
+You can now upload your own PRs for testing:
+1.  Navigate to the **🛠️ Custom PR Creator** tab in the UI.
+2.  Paste your PR Diffs and define the **Bug Metadata** (for automated grading).
+3.  Click **🚀 Load Custom Challenge** to start the evaluation.
+
+### 3. Running the AI Baseline
 Ensure your environment variables are configured:
 ```bash
 export HF_TOKEN="your_huggingface_token"

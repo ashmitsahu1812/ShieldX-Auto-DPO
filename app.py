@@ -22,11 +22,35 @@ class StepRequest(BaseModel):
     session_id: str
     action: Action
 
+class CustomResetRequest(BaseModel):
+    title: str
+    description: str
+    files_changed: list
+    expected_bugs: list
+    max_steps: int = 8
+
 @app.post("/reset")
 def reset_env(req: ResetRequest):
     env = CodeReviewEnv(
         task_type=req.task_type,
         task_index=req.task_index,
+        max_steps=req.max_steps
+    )
+    session_id = str(uuid.uuid4())
+    sessions[session_id] = env
+    
+    obs = env.state()
+    return {
+        "session_id": session_id,
+        "observation": obs.dict()
+    }
+
+@app.post("/reset/custom")
+def reset_env_custom(req: CustomResetRequest):
+    custom_data = req.dict()
+    env = CodeReviewEnv(
+        task_type="custom",
+        custom_data=custom_data,
         max_steps=req.max_steps
     )
     session_id = str(uuid.uuid4())

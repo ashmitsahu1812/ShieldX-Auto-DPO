@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code_review_env"
+version = "1.0.0"
+description = "Simulates software pull request review workflows with adversarial challenges."
+authors = [
+    { name = "OpenEnv Participant", email = "participant@example.com" }
+]
+dependencies = [
+    "pydantic>=2.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "openai>=1.0.0",
+    "gradio>=4.0.0",
+    "python-multipart",
+    "httpx",
+    "openenv-core>=0.2.0"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.openenv]
+task_types = ["syntax_review", "bug_detection", "full_review", "adversarial_review"]
+entrypoint = "server.app:main"

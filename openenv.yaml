@@ -1,0 +1,8 @@
+name: code_review_env
+version: "1.0.0"
+description: Simulates software pull request review workflows with adversarial challenges.
+tasks:
+  - syntax_review
+  - bug_detection
+  - full_review
+  - adversarial_review

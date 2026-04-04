@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional, Dict
 import uuid
@@ -30,7 +30,11 @@ class CustomResetRequest(BaseModel):
     max_steps: int = 8
 
 @app.post("/reset")
-def reset_env(req: ResetRequest):
+def reset_env(req: Optional[ResetRequest] = Body(None)):
+    # Use defaults if no body provided
+    if req is None:
+        req = ResetRequest()
+        
     env = CodeReviewEnv(
         task_type=req.task_type,
         task_index=req.task_index,

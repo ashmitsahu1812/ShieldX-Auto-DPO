@@ -4,6 +4,9 @@ import asyncio
 import httpx
 from typing import List, Optional, Set, Dict, Any
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Required Environment Variables (Mandatory for Hackathon)
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")

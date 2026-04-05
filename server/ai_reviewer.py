@@ -6,10 +6,16 @@ No dummy data. No hallucination. Real diffs from real PRs.
 import os
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-32B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN", "your_huggingface_token_here")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+if not HF_TOKEN or HF_TOKEN == "your_huggingface_token_here":
+    raise ValueError("HF_TOKEN environment variable is missing or invalid. Please check your .env file.")
 
 
 def analyze_pr(pr_data: dict) -> list:

@@ -69,7 +69,15 @@ async def get_model_message(
             response_format={"type": "json_object"},
             temperature=0  # Force deterministic output
         )
-        return json.loads(response.choices[0].message.content)
+        try:
+            return json.loads(response.choices[0].message.content)
+        except (json.JSONDecodeError, TypeError):
+            return {
+              "action_type": "comment",
+              "file": "unknown",
+              "line": 0,
+              "comment": "Parsing error fallback"
+            }
     except Exception as e:
         return {"action_type": "comment", "file": "unknown", "line": 0, "comment": f"Continuing analysis... (Error: {e})"}
 
@@ -87,7 +95,7 @@ async def run_baseline_task(task_type: str, task_index: int = 0) -> float:
     score = 0.0
     success = False
 
-    async with httpx.AsyncClient() as http_client:
+    async with httpx.AsyncClient(timeout=20.0) as http_client:
         try:
             # OpenENV.reset()
             resp = await http_client.post(f"{API_URL}/reset", json={
@@ -108,6 +116,10 @@ async def run_baseline_task(task_type: str, task_index: int = 0) -> float:
                 
                 # Check for repetition
                 action_type = action_dict.get("action_type", "comment")
+                if action_type not in ["comment", "approve", "request_changes"]:
+                    action_type = "comment"
+                    action_dict["action_type"] = action_type
+                    
                 action_str = f"{action_type}: {action_dict.get('comment', 'no_comment')[:60]}...".replace("\n", " ")
 
                 # Step Environment
@@ -126,7 +138,7 @@ async def run_baseline_task(task_type: str, task_index: int = 0) -> float:
                 if reward < 0 and action_type == "comment":
                     # If we got a penalty for a comment, we should stop and decide.
                     # We'll take one more step to finalize.
-                    final_action = "request_changes" if any(r > 0 for r in rewards) else "approve"
+                    final_action = "request_changes" if sum(rewards) > 0.3 else "approve"
                     resp = await http_client.post(f"{API_URL}/step", json={
                         "session_id": session_id,
                         "action": {"action_type": final_action, "comment": "Finalizing review based on findings."}
@@ -154,7 +166,7 @@ async def run_baseline_task(task_type: str, task_index: int = 0) -> float:
     return score
 
 async def main() -> None:
-    tasks = [("syntax_review", 0), ("bug_detection", 0), ("adversarial_review", 0)]
+    tasks = [("syntax_review", 0), ("bug_detection", 0), ("full_review", 0), ("adversarial_review", 0)]
     total_score = 0.0
     for t_type, t_idx in tasks:
         total_score += await run_baseline_task(t_type, t_idx)

@@ -1,6 +1,15 @@
 name: code_review_env
 version: "1.0.0"
 description: Simulates software pull request review workflows with adversarial challenges.
+
+entrypoint:
+  command: uvicorn server.app:app --host 0.0.0.0 --port 7860
+
+interface:
+  endpoints:
+    reset: /reset
+    step: /step
+
 tasks:
   - id: syntax_review
     name: Syntax & Style Review

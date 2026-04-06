@@ -57,9 +57,9 @@ Unique to ScalarX Meta is a **Self-Learning Flywheel** (accessible via the Web U
 
 ### 1. Requirements
 Ensure you have the following environment variables defined:
-*   `API_BASE_URL`: The LLM inference endpoint (Default: `https://text.pollinations.ai/v1`).
-*   `MODEL_NAME`: The model identifier (Default: `openai`).
-*   `HF_TOKEN`: Any string (Pollinations is unauthenticated).
+*   `API_BASE_URL`: The LLM inference endpoint (Default: `https://router.huggingface.co/v1`).
+*   `MODEL_NAME`: The model identifier (Default: `Qwen/Qwen2.5-Coder-32B-Instruct`).
+*   `HF_TOKEN`: Your Hugging Face "Read" token.
 
 ### 2. Local Setup
 ```bash
@@ -68,8 +68,10 @@ git clone <your-repo-url>
 cd scalarxmeta
 pip install -r requirements.txt
 
-# Create a .env file (No key needed for Pollinations)
-echo "MODEL_NAME=openai" > .env
+# Create a .env file
+echo "MODEL_NAME=Qwen/Qwen2.5-Coder-32B-Instruct" > .env
+echo "API_BASE_URL=https://router.huggingface.co/v1" >> .env
+echo "HF_TOKEN=your_token_here" >> .env
 
 # Start the environment server
 uvicorn server.app:app --port 7860

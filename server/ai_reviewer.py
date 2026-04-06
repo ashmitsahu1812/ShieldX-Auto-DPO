@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://text.pollinations.ai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+MODEL_NAME = os.getenv("MODEL_NAME", "openai")
 HF_TOKEN = os.getenv("HF_TOKEN", "any_string_for_pollinations")
 
 if not HF_TOKEN or HF_TOKEN == "your_huggingface_token_here":

@@ -10,7 +10,7 @@ load_dotenv()
 
 # Required Environment Variables (Mandatory for Hackathon)
 API_BASE_URL = os.getenv("API_BASE_URL", "https://text.pollinations.ai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+MODEL_NAME = os.getenv("MODEL_NAME", "openai")
 HF_TOKEN = os.getenv("HF_TOKEN", "any_string_for_pollinations")
 
 # Environment Endpoint

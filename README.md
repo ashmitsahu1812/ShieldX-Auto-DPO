@@ -35,6 +35,14 @@ At each step, the agent receives:
 
 ---
 
+## 📉 Self-Learning Flywheel
+Unique to ScalarX Meta is a **Self-Learning Flywheel** (accessible via the Web UI). It tracks agent performance patterns and stores them in `flywheel_store.json`. This data is used to:
+1.  Identify common agent failure modes in bug detection.
+2.  Provide human-in-the-loop (HITL) feedback to refine the rewards.
+3.  Generate better synthetic task data over time.
+
+---
+
 ## 📈 Evaluation Tasks
 | Task ID | Difficulty | Focus |
 | :--- | :--- | :--- |
@@ -63,7 +71,10 @@ pip install -r requirements.txt
 # Create a .env file with your credentials
 echo "HF_TOKEN=your_token" > .env
 
-# Run the baseline inference
+# Start the environment server
+uvicorn server.app:app --port 7860
+
+# In a new terminal, run the baseline inference
 python3 inference.py
 ```
 
@@ -76,11 +87,11 @@ docker run -p 7860:7860 -e HF_TOKEN="your_token" openenv-scalarx
 ---
 
 ## 📝 Mandatory STDOUT Logging
-The `inference.py` script emits structured logs strictly following the OpenEnv requirement:
+The `inference.py` script emits structured logs strictly following the OpenEnv requirement (note usage of double-spaces after `[STEP]` for alignment parsing):
 
 ```text
 [START] task=<task_name> env=code_review_env model=<model_name>
-[STEP] step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<null>
+[STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
 [END] success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
 ```
 

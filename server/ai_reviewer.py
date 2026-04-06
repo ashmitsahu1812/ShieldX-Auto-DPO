@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://text.pollinations.ai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "openai")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.getenv("HF_TOKEN", "any_string_for_pollinations")
 
 if not HF_TOKEN or HF_TOKEN == "your_huggingface_token_here":
@@ -44,9 +44,12 @@ def analyze_pr(pr_data: dict) -> list:
     # Build the real diff context for the model
     diff_context = ""
     for f in files:
+        patch = f.get("patch", "")
+        if len(patch) > 5000:
+            patch = patch[:5000] + "\n... (diff truncated for length) ..."
         diff_context += f"\n--- File: {f['filename']} ({f['status']}) ---\n"
         diff_context += f"  Additions: {f['additions']}, Deletions: {f['deletions']}\n"
-        diff_context += f"```diff\n{f['patch']}\n```\n"
+        diff_context += f"```diff\n{patch}\n```\n"
 
     prompt = f"""You are a Senior Software Engineer performing a thorough code review.
 
@@ -89,45 +92,57 @@ Output ONLY this JSON structure:
 }}
 """
 
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": "You are a production-grade code reviewer. Output ONLY valid JSON. Never hallucinate issues that don't exist in the diff. Be precise."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_tokens=2000
-        )
-        
-        raw_content = response.choices[0].message.content
-        if not raw_content:
-            raise ValueError("Model returned empty content")
+    retries = 3
+    last_error = None
+    
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": "You are a production-grade code reviewer. Output ONLY valid JSON. Never hallucinate issues that don't exist in the diff. Be precise."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=2500
+            )
+            
+            raw_content = response.choices[0].message.content
+            if not raw_content:
+                raise ValueError("Model returned empty content")
 
-        content = raw_content.strip()
-        # Robust extraction of the first JSON object
-        if "{" in content and "}" in content:
-            start_idx = content.find("{")
-            stack = 0
-            first_obj_end = -1
-            for i in range(start_idx, len(content)):
-                if content[i] == "{":
-                    stack += 1
-                elif content[i] == "}":
-                    stack -= 1
-                    if stack == 0:
-                        first_obj_end = i
-                        break
-            if first_obj_end != -1:
-                content = content[start_idx:first_obj_end+1]
+            content = raw_content.strip()
+            # Robust extraction of the first JSON object
+            if "{" in content and "}" in content:
+                start_idx = content.find("{")
+                stack = 0
+                first_obj_end = -1
+                for i in range(start_idx, len(content)):
+                    if content[i] == "{":
+                        stack += 1
+                    elif content[i] == "}":
+                        stack -= 1
+                        if stack == 0:
+                            first_obj_end = i
+                            break
+                if first_obj_end != -1:
+                    content = content[start_idx:first_obj_end+1]
 
-        result = json.loads(content)
-        return result
-    except Exception as e:
-        logger.error(f"AI analysis failed: {e}. Raw content: {raw_content if 'raw_content' in locals() else 'None'}")
-        return {
-            "comments": [{"file": "system", "severity": "error", "comment": f"AI analysis failed: {str(e)}. Please check your HF_TOKEN or try again."}],
-            "overall_verdict": "request_changes",
-            "verdict_reason": f"Analysis could not be completed due to an error: {str(e)}",
-            "merge_conflicts_found": False
-        }
+            result = json.loads(content)
+            return result
+        except Exception as e:
+            last_error = e
+            logger.warning(f"AI analysis attempt {attempt+1} failed: {e}")
+            if attempt < retries - 1:
+                import time
+                time.sleep(2) # Small backoff
+                continue
+
+    # If all retries fail
+    logger.error(f"AI analysis failed after {retries} attempts: {last_error}")
+    return {
+        "comments": [{"file": "system", "severity": "error", "comment": f"AI analysis failed after {retries} attempts ({str(last_error)}). Please try again or check your diff size."}],
+        "overall_verdict": "request_changes",
+        "verdict_reason": f"Analysis could not be completed after several attempts: {str(last_error)}",
+        "merge_conflicts_found": False
+    }

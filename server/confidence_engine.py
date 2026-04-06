@@ -110,11 +110,32 @@ Output ONLY this JSON:
                     {"role": "system", "content": "You are a code reviewer. Output ONLY valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                response_format={"type": "json_object"},
                 temperature=0.1,
                 max_tokens=800
             )
-            ai_plan = json.loads(response.choices[0].message.content)
+
+            raw_content = response.choices[0].message.content
+            if not raw_content:
+                raise ValueError("Model returned empty content")
+
+            content = raw_content.strip()
+            # Robust extraction of the first JSON object
+            if "{" in content and "}" in content:
+                start_idx = content.find("{")
+                stack = 0
+                first_obj_end = -1
+                for i in range(start_idx, len(content)):
+                    if content[i] == "{":
+                        stack += 1
+                    elif content[i] == "}":
+                        stack -= 1
+                        if stack == 0:
+                            first_obj_end = i
+                            break
+                if first_obj_end != -1:
+                    content = content[start_idx:first_obj_end+1]
+
+            ai_plan = json.loads(content)
 
             # Execute steps
             for step in ai_plan.get("steps", [])[:3]:

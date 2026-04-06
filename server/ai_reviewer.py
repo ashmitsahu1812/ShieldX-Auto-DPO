@@ -5,8 +5,11 @@ No dummy data. No hallucination. Real diffs from real PRs.
 """
 import os
 import json
+import logging
 from openai import OpenAI
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -93,15 +96,37 @@ Output ONLY this JSON structure:
                 {"role": "system", "content": "You are a production-grade code reviewer. Output ONLY valid JSON. Never hallucinate issues that don't exist in the diff. Be precise."},
                 {"role": "user", "content": prompt}
             ],
-            response_format={"type": "json_object"},
             temperature=0.1,
             max_tokens=2000
         )
-        result = json.loads(response.choices[0].message.content)
+        
+        raw_content = response.choices[0].message.content
+        if not raw_content:
+            raise ValueError("Model returned empty content")
+
+        content = raw_content.strip()
+        # Robust extraction of the first JSON object
+        if "{" in content and "}" in content:
+            start_idx = content.find("{")
+            stack = 0
+            first_obj_end = -1
+            for i in range(start_idx, len(content)):
+                if content[i] == "{":
+                    stack += 1
+                elif content[i] == "}":
+                    stack -= 1
+                    if stack == 0:
+                        first_obj_end = i
+                        break
+            if first_obj_end != -1:
+                content = content[start_idx:first_obj_end+1]
+
+        result = json.loads(content)
         return result
     except Exception as e:
+        logger.error(f"AI analysis failed: {e}. Raw content: {raw_content if 'raw_content' in locals() else 'None'}")
         return {
-            "comments": [{"file": "system", "severity": "error", "comment": f"AI analysis failed: {str(e)}. Please check your HF_TOKEN."}],
+            "comments": [{"file": "system", "severity": "error", "comment": f"AI analysis failed: {str(e)}. Please check your HF_TOKEN or try again."}],
             "overall_verdict": "request_changes",
             "verdict_reason": f"Analysis could not be completed due to an error: {str(e)}",
             "merge_conflicts_found": False

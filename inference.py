@@ -23,6 +23,10 @@ MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-32B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
 API_URL = os.getenv("API_URL", "http://127.0.0.1:7860")
 
+# Tiered Provider Configuration
+POLLINATIONS_URL = os.getenv("POLLINATIONS_URL", "https://text.pollinations.ai/openai")
+POLLINATIONS_MODEL = os.getenv("POLLINATIONS_MODEL", "openai")
+
 BENCHMARK = "code_review_env"
 MAX_STEPS = 8
 SUCCESS_SCORE_THRESHOLD = 0.40
@@ -319,16 +323,21 @@ def build_model_prompt(
     history: List[str],
 ) -> str:
     return (
-        "You are reviewing a pull request in an OpenEnv benchmark.\n"
+        "### SCORING RULES - READ CAREFULLY:\n"
+        "1. You ONLY get bug detection points if you use the 'comment' action on the exact file and line.\n"
+        "2. If you 'request_changes' BEFORE you have commented on at least one bug, you will get a PENALTY (-0.5) for 'unjustified rejection'.\n"
+        "3. You should continue to 'comment' until you have reported ALL bugs you found.\n"
+        "4. ONLY after reporting all bugs, use 'request_changes' to end the review.\n"
+        "5. If there are NO bugs, use 'approve'.\n\n"
+        "### CURRENT CONTEXT:\n"
         f"Step: {step_number}\n"
         f"Last reward: {last_reward:.2f}\n"
-        f"History: {json.dumps(history[-3:])}\n"
+        f"Comments already made: {json.dumps(history)}\n"
         f"Title: {observation.get('title')}\n"
         f"Description: {observation.get('description')}\n"
         f"Files changed: {json.dumps(observation.get('files_changed', []))}\n\n"
-        "Respond with JSON only using this schema:\n"
-        '{"action_type":"comment|approve|request_changes","file":"optional","line":0,"comment":"optional"}\n'
-        "If you think the PR is buggy, comment with precise file and line details before requesting changes."
+        "Respond with JSON only:\n"
+        '{"action_type":"comment|approve|request_changes","file":"filename","line":0,"comment":"explanation"}'
     )
 
 
@@ -338,14 +347,21 @@ def get_model_action(
     step_number: int,
     last_reward: float,
     history: List[str],
+    model: str = MODEL_NAME,
 ) -> Dict[str, Any]:
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=model,
         temperature=0,
         messages=[
             {
                 "role": "system",
-                "content": "You are a precise senior engineer. Return JSON only.",
+                "content": (
+                    "You are a Senior Silicon Valley Engineer performing a high-precision code review. "
+                    "You are playing an RL game where you must maximize your reward. "
+                    "STRATEGY: You must identify all bugs. For EVERY bug found, your NEXT action MUST be a 'comment' action. "
+                    "NEVER 'request_changes' until you have commented on every bug. "
+                    "If you skip the 'comment' step, you lose 50% of your potential score."
+                ),
             },
             {
                 "role": "user",
@@ -353,6 +369,7 @@ def get_model_action(
             },
         ],
     )
+
     content = (response.choices[0].message.content or "").strip()
     start = content.find("{")
     end = content.rfind("}")
@@ -362,19 +379,33 @@ def get_model_action(
 
 
 def choose_action(
-    client: Optional[OpenAI],
+    hf_client: Optional[OpenAI],
+    pollinations_client: Optional[OpenAI],
     observation: Dict[str, Any],
     step_number: int,
     last_reward: float,
     history: List[str],
 ) -> Tuple[Dict[str, Any], str]:
-    if client is not None:
+    # Tier 1: Hugging Face (Best Quality)
+    if hf_client is not None:
         try:
-            action = get_model_action(client, observation, step_number, last_reward, history)
-            return action, "llm"
+            action = get_model_action(hf_client, observation, step_number, last_reward, history, model=MODEL_NAME)
+            return action, "llm:hf"
         except Exception as exc:
-            print(f"[DEBUG] Model request failed: {exc}", flush=True, file=sys.stderr)
+            if "402" in str(exc) or "credits" in str(exc).lower():
+                print(f"[DEBUG] Hugging Face credits depleted, falling back to Tier 2...", flush=True, file=sys.stderr)
+            else:
+                print(f"[DEBUG] Hugging Face request failed: {exc}", flush=True, file=sys.stderr)
 
+    # Tier 2: Pollinations AI (Unlimited Backup)
+    if pollinations_client is not None:
+        try:
+            action = get_model_action(pollinations_client, observation, step_number, last_reward, history, model=POLLINATIONS_MODEL)
+            return action, "llm:pollinations"
+        except Exception as exc:
+            print(f"[DEBUG] Pollinations backup failed: {exc}", flush=True, file=sys.stderr)
+
+    # Tier 3: Heuristic Guard (Safety Net)
     return build_fallback_action(observation, step_number, history), "fallback"
 
 
@@ -398,23 +429,49 @@ async def run_baseline_task(
         result = await env.reset()
         observation = result.observation
         last_reward = 0.0
+        
+        # Track reported bugs to avoid duplicate comment loops
+        reported_locations = set()
+
+        # Clients for Tiered Intelligence
+        hf_client = client
+        pollinations_client = OpenAI(base_url=POLLINATIONS_URL, api_key="not-needed")
 
         for step_number in range(1, MAX_STEPS + 1):
             if result.done:
                 break
 
+            obs_dict = observation_to_dict(observation)
+            
             action, source = choose_action(
-                client=client,
-                observation=observation_to_dict(observation),
+                hf_client=hf_client,
+                pollinations_client=pollinations_client,
+                observation=obs_dict,
                 step_number=step_number,
                 last_reward=last_reward,
                 history=history,
             )
+            
+            action_type = action.get("action_type", "comment")
+            file_name = action.get("file")
+            line_num = action.get("line")
+            
+            # Smart Guard: If model repeats a comment, force it to finalize the review.
+            loc_key = f"{file_name}:{line_num}"
+            if action_type == "comment" and loc_key in reported_locations:
+                issue = detect_review_issue(obs_dict)
+                action_type = "request_changes" if issue else "approve"
+                action["action_type"] = action_type
+                action["comment"] = "Finalizing review after reporting all discovered issues."
+            
+            if action_type == "comment":
+                reported_locations.add(loc_key)
+
             action_model = CodeReviewAction.model_validate(
                 {
-                    "action_type": action.get("action_type", "comment"),
-                    "file": action.get("file"),
-                    "line": action.get("line"),
+                    "action_type": action_type,
+                    "file": file_name,
+                    "line": line_num,
                     "comment": action.get("comment", "Review decision."),
                 }
             )
@@ -447,6 +504,7 @@ async def run_baseline_task(
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return score
+
 
 
 async def main() -> None:

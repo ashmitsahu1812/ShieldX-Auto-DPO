@@ -2,6 +2,10 @@ from typing import Any, Dict, Tuple, Optional
 from .models import Observation, Action, Reward, Info
 from .tasks import get_task
 
+MIN_FINAL_SCORE = 0.01
+MAX_FINAL_SCORE = 0.99
+
+
 class CodeReviewEnv:
     def __init__(self, task_type: str = "syntax_review", task_index: int = 0, max_steps: int = 8, custom_data: dict = None, flywheel_store=None):
         self.task_type = task_type
@@ -59,8 +63,8 @@ class CodeReviewEnv:
             penalty = finalize_episode(self.task_data, self.bugs_identified)
             self.total_score += penalty
             
-            # Final clamping for the official (0, 1) range
-            self.total_score = max(0.0, min(1.0, self.total_score))
+            # The validator requires final task scores to be strictly inside (0, 1).
+            self.total_score = max(MIN_FINAL_SCORE, min(MAX_FINAL_SCORE, self.total_score))
             info = Info(done=True, score=self.total_score, message="Episode completed")
 
             # Record benchmark result to flywheel store if available

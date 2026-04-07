@@ -106,7 +106,7 @@ Output ONLY this JSON:
 
             # Priority Tiers for Simulations
             hf_models = [MODEL_NAME, "meta-llama/Llama-3.1-8B-Instruct"]
-            poll_models = ["openai", "qwen"]
+            poll_models = ["openai"]
             
             hf_client = client
             poll_client = OpenAI(base_url="https://text.pollinations.ai/openai", api_key="not-needed")

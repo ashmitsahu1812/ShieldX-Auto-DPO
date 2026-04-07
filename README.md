@@ -86,6 +86,19 @@ docker build -t openenv-scalarx .
 docker run -p 7860:7860 -e HF_TOKEN="your_token" openenv-scalarx
 ```
 
+### 4. Pre-Submission Validation
+Run these checks from the repository root before submitting:
+
+```bash
+docker build .
+openenv validate
+bash validate.sh https://ashmit1812-scalarxmeta.hf.space .
+```
+
+Notes:
+- Use your live Hugging Face Space URL, not the `huggingface.co/spaces/...` repo page URL.
+- The validator expects `POST /reset` on the running Space to return HTTP `200`.
+
 ---
 
 ## 📝 Mandatory STDOUT Logging
@@ -99,13 +112,14 @@ The `inference.py` script emits structured logs strictly following the OpenEnv r
 
 ---
 
-## 🏆 Baseline Performance (Qwen 2.5 Coder 32B)
-| Task | Success Rate | Avg. Score |
-| :--- | :---: | :---: |
-| Syntax Review | 95% | 0.92 |
-| Bug Detection | 82% | 0.85 |
-| Full Review | 65% | 0.68 |
-| Adversarial | **45%** | **0.52** |
+## 🏆 Baseline Notes
+The submitted baseline is intentionally conservative and validator-safe:
+- It uses the required OpenAI client interface and emits strict `[START]`, `[STEP]`, and `[END]` logs.
+- It can run against the local API, the deployed Space, or an in-process fallback for local verification.
+- Final task scores are kept strictly inside `(0, 1)` to satisfy validator requirements.
+- The fallback reviewer is heuristic and observation-only; it does not use hidden labels or oracle metadata.
+
+This repository is optimized first for OpenEnv compliance, reproducibility, and deployability, and second for raw benchmark score.
 
 ---
 **Built for the OpenEnv Hackathon** • **Engineered for Precision** • **Deployable on HF Spaces**

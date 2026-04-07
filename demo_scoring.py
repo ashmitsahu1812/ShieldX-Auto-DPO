@@ -1,5 +1,5 @@
-from server.env.environment import CodeReviewEnv
-from server.env.models import Action
+from server.environment import CodeReviewEnv
+from server.models import Action
 import json
 
 def run_demo():

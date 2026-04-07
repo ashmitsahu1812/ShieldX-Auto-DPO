@@ -22,7 +22,7 @@ class CodeReviewEnv:
         self.actions_history = []
         self.bugs_identified = set()
         self.done = False
-        self.total_score = 0.0
+        self.total_score = 0.01
         self.last_action_feedback = "Environment initialized. Awaiting review."
         return self.state()
 
@@ -38,7 +38,7 @@ class CodeReviewEnv:
         self.bugs_identified.update(new_bugs)
         
         step_reward -= 0.05 # Step penalty
-        step_reward = max(0.0, min(1.0, step_reward))
+        step_reward = max(0.01, min(0.99, step_reward))
         
         if action.action_type == "comment":
             self.comments_history.append(f"[{action.file}:{action.line}] {action.comment}")
@@ -59,8 +59,8 @@ class CodeReviewEnv:
             penalty = finalize_episode(self.task_data, self.bugs_identified)
             self.total_score += penalty
             
-            # Final clamping for the official 0.0-1.0 range
-            self.total_score = max(0.0, min(1.0, self.total_score))
+            # Final clamping for the official (0, 1) range
+            self.total_score = max(0.01, min(0.99, self.total_score))
             info = Info(done=True, score=self.total_score, message="Episode completed")
 
             # Record benchmark result to flywheel store if available

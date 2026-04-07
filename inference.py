@@ -11,6 +11,10 @@ from urllib.parse import urlparse
 import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
+from pydantic import BaseModel
+
+from server.models import Action as CodeReviewAction
+from server.models import Observation
 
 load_dotenv()
 
@@ -23,6 +27,28 @@ BENCHMARK = "code_review_env"
 MAX_STEPS = 8
 SUCCESS_SCORE_THRESHOLD = 0.40
 DEFAULT_TIMEOUT = 20.0
+MAX_TOTAL_REWARD = 1.0
+
+
+class StepInfo(BaseModel):
+    done: bool
+    score: Optional[float] = None
+    message: Optional[str] = None
+
+
+class ResetResult(BaseModel):
+    session_id: str
+    observation: Observation
+    reward: float = 0.0
+    done: bool = False
+    info: Optional[StepInfo] = None
+
+
+class StepResult(BaseModel):
+    observation: Observation
+    reward: float
+    done: bool
+    info: StepInfo
 
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -137,6 +163,55 @@ async def create_env_client() -> Tuple[httpx.AsyncClient, Optional[subprocess.Po
     raise RuntimeError(f"Environment API is not reachable at {API_URL}")
 
 
+class CodeReviewBenchmarkEnv:
+    def __init__(self, client: httpx.AsyncClient, task_type: str, task_index: int, max_steps: int = MAX_STEPS):
+        self.client = client
+        self.task_type = task_type
+        self.task_index = task_index
+        self.max_steps = max_steps
+        self.session_id: Optional[str] = None
+
+    async def reset(self) -> ResetResult:
+        response = await self.client.post(
+            "/reset",
+            json={
+                "task_type": self.task_type,
+                "task_index": self.task_index,
+                "max_steps": self.max_steps,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        self.session_id = payload["session_id"]
+        return ResetResult.model_validate(payload)
+
+    async def step(self, action: CodeReviewAction) -> StepResult:
+        if self.session_id is None:
+            raise RuntimeError("Environment must be reset before stepping")
+
+        response = await self.client.post(
+            "/step",
+            json={
+                "session_id": self.session_id,
+                "action": action.model_dump(exclude_none=True),
+            },
+        )
+        response.raise_for_status()
+        return StepResult.model_validate(response.json())
+
+    async def state(self) -> Observation:
+        if self.session_id is None:
+            raise RuntimeError("Environment must be reset before reading state")
+
+        response = await self.client.post("/state", json={"session_id": self.session_id})
+        response.raise_for_status()
+        payload = response.json()
+        return Observation.model_validate(payload["observation"])
+
+    async def close(self) -> None:
+        self.session_id = None
+
+
 def extract_added_lines(diff: str) -> List[Tuple[int, str]]:
     lines: List[Tuple[int, str]] = []
     current_line = 0
@@ -218,6 +293,10 @@ def detect_review_issue(observation: Dict[str, Any]) -> Optional[Dict[str, Any]]
                         "comment": message,
                     }
     return None
+
+
+def observation_to_dict(observation: Observation) -> Dict[str, Any]:
+    return observation.model_dump()
 
 
 def build_fallback_action(observation: Dict[str, Any], step_number: int, history: List[str]) -> Dict[str, Any]:
@@ -311,48 +390,41 @@ async def run_baseline_task(
     steps_taken = 0
     score = 0.0
     success = False
+    env = CodeReviewBenchmarkEnv(env_client, task_type=task_type, task_index=task_index, max_steps=MAX_STEPS)
 
     log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        reset_response = await env_client.post(
-            "/reset",
-            json={"task_type": task_type, "task_index": task_index, "max_steps": MAX_STEPS},
-        )
-        reset_response.raise_for_status()
-        reset_payload = reset_response.json()
-        session_id = reset_payload["session_id"]
-        observation = reset_payload["observation"]
-
+        result = await env.reset()
+        observation = result.observation
         last_reward = 0.0
-        done = False
 
         for step_number in range(1, MAX_STEPS + 1):
-            if done:
+            if result.done:
                 break
 
             action, source = choose_action(
                 client=client,
-                observation=observation,
+                observation=observation_to_dict(observation),
                 step_number=step_number,
                 last_reward=last_reward,
                 history=history,
             )
-            action.setdefault("comment", "Review decision.")
-
-            step_response = await env_client.post(
-                "/step",
-                json={"session_id": session_id, "action": action},
+            action_model = CodeReviewAction.model_validate(
+                {
+                    "action_type": action.get("action_type", "comment"),
+                    "file": action.get("file"),
+                    "line": action.get("line"),
+                    "comment": action.get("comment", "Review decision."),
+                }
             )
-            step_response.raise_for_status()
-            step_payload = step_response.json()
+            result = await env.step(action_model)
 
-            observation = step_payload["observation"]
-            reward = float(step_payload.get("reward", 0.0) or 0.0)
-            done = bool(step_payload.get("done", False))
-            info = step_payload.get("info", {})
-            action_desc = f"{source}:{action.get('action_type')}:{action.get('comment', '')[:60]}"
-
+            observation = result.observation
+            reward = float(result.reward or 0.0)
+            done = result.done
+            info = result.info
+            action_desc = f"{source}:{action_model.action_type}:{(action_model.comment or '')[:60]}"
             rewards.append(reward)
             steps_taken = step_number
             last_reward = reward
@@ -360,13 +432,18 @@ async def run_baseline_task(
             log_step(step=step_number, action=action_desc, reward=reward, done=done, error=None)
 
             if done:
-                score = float(info.get("score", score) or 0.0)
+                score = float(info.score or score)
                 break
+
+        if score == 0.0 and rewards:
+            score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
+            score = min(max(score, 0.0), 1.0)
 
         success = score >= SUCCESS_SCORE_THRESHOLD
     except Exception as exc:
         log_step(step=steps_taken + 1, action="error", reward=0.0, done=True, error=str(exc))
     finally:
+        await env.close()
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return score

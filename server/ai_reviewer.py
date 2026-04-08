@@ -20,7 +20,8 @@ MODEL_NAME = os.getenv("MODEL_NAME", "openai")
 HF_TOKEN = os.getenv("HF_TOKEN", "any_string_for_pollinations")
 
 if not HF_TOKEN or HF_TOKEN == "your_huggingface_token_here":
-    raise ValueError("HF_TOKEN or OPENROUTER_API_KEY environment variable is missing or invalid. Please check your .env file.")
+    logger.warning("HF_TOKEN environment variable is missing or invalid. Please check your .env file or Space Secrets. HF models will fail until set.")
+    HF_TOKEN = "invalid_token_placeholder"
 
 
 def analyze_pr(pr_data: dict) -> list:

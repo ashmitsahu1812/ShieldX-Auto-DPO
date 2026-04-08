@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Add a non-root user (Hugging Face Spaces requirement/best practice)
-RUN useradd -m -u 1000 user
+# Add a non-root user and give them permissions to /app
+RUN useradd -m -u 1000 user && chown -R user:user /app
 USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH

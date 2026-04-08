@@ -4,7 +4,10 @@ No dummy data, no assumptions. Pure GitHub REST API.
 """
 import re
 import httpx
+import os
 from typing import Optional
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 
 def parse_pr_url(url: str) -> Optional[dict]:
@@ -26,7 +29,8 @@ def parse_pr_url(url: str) -> Optional[dict]:
 def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
     """Fetches PR title, description, author, merge status from GitHub API."""
     api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
-    resp = httpx.get(api_url, timeout=15)
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+    resp = httpx.get(api_url, headers=headers, timeout=15)
     resp.raise_for_status()
     data = resp.json()
 
@@ -49,7 +53,8 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
 def fetch_pr_diff(owner: str, repo: str, pr_number: int) -> str:
     """Fetches the raw unified diff for the PR."""
     diff_url = f"https://github.com/{owner}/{repo}/pull/{pr_number}.diff"
-    resp = httpx.get(diff_url, timeout=15, follow_redirects=True)
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+    resp = httpx.get(diff_url, headers=headers, timeout=15, follow_redirects=True)
     resp.raise_for_status()
     return resp.text
 
@@ -57,7 +62,8 @@ def fetch_pr_diff(owner: str, repo: str, pr_number: int) -> str:
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list:
     """Fetches the list of changed files with their patches."""
     api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
-    resp = httpx.get(api_url, timeout=15)
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+    resp = httpx.get(api_url, headers=headers, timeout=15)
     resp.raise_for_status()
     files = resp.json()
 

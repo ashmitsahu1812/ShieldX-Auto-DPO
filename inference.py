@@ -265,7 +265,7 @@ def detect_review_issue(observation: Dict[str, Any]) -> Optional[Dict[str, Any]]
             "the implementation still uses md5 despite claiming sha-256, which is a security regression.",
         ),
         (
-            lambda text: "return True" in text and "is_banned" in text,
+            lambda text: "if user.is_banned == False:" in text,
             "this logic always returns True and will allow banned users through the validation check.",
         ),
         (

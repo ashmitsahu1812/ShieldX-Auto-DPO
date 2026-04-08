@@ -17,7 +17,8 @@ dependencies = [
     "gradio>=4.0.0",
     "python-multipart",
     "httpx",
-    "openenv-core>=0.2.0"
+    "openenv-core>=0.2.0",
+    "huggingface-hub<0.28.0"
 ]
 requires-python = ">=3.10"
 

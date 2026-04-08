@@ -99,13 +99,13 @@ Output ONLY this JSON structure:
     # Priority Tier 2: Pollinations AI (Unlimited Backup)
     
     hf_client = client
-    pollinations_client = OpenAI(base_url="https://text.pollinations.ai/openai", api_key="not-needed")
+    pollinations_client = OpenAI(base_url="https://gen.pollinations.ai/v1", api_key="not-needed")
     
     # Models verified as stable
     # Tier 1 Models (HF)
     hf_models = [MODEL_NAME, "meta-llama/Llama-3.1-8B-Instruct"]
-    # Tier 2 Models (Pollinations)
-    poll_models = ["openai"]
+    # Tier 2 Models (Pollinations - Stable Alternatives)
+    poll_models = ["gpt-4o-mini", "mistral-7b", "openai"]
 
     retries_per_model = 2
     last_error = None

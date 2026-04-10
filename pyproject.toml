@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shieldx"
+version = "0.1.0"
+description = "ShieldX: Autonomous Data Privacy Officer RL Environment"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "ShieldX Team" }
+]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "openai",
+    "httpx",
+    "python-dotenv",
+    "gymnasium",
+    "jinja2",
+    "python-multipart",
+    "openenv-core"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ashmitsahu1812/ShieldX-Auto-DPO"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["server*"]

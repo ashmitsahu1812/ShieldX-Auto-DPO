@@ -51,8 +51,13 @@ class ShieldXEnv:
         })
         if reward_obj.done or self.step_count >= self.max_steps:
             self.done = True
-        return self.state(), reward_obj.value, self.done, {
+        
+        # Enforce strict (0, 1) bounds: 0.0 and 1.0 are excluded
+        final_reward = max(0.01, min(0.99, reward_obj.value))
+        final_score = max(0.01, min(0.99, self.total_reward))
+
+        return self.state(), float(final_reward), self.done, {
             "cumulative_reward": self.total_reward,
-            "score": min(max(self.total_reward, 0.0), 1.0),
+            "score": float(final_score),
             "explanation": reward_obj.logic_explanation
         }

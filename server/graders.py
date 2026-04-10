@@ -43,6 +43,6 @@ def grade_action(action: PrivacyAction, task: Dict[str, Any], state: Dict[str, A
     
     # Task 2 & 4: Correct targeting returns terminal success
     if action.target in task.get("ground_truth", []):
-        return PrivacyReward(value=1.0, partial_score=1.0, logic_explanation="Target correctly processed.", done=True)
+        return PrivacyReward(value=0.5, partial_score=0.5, logic_explanation="Target correctly processed.", done=True)
     
-    return PrivacyReward(value=0.0, partial_score=0.0, logic_explanation="Action irrelevant to task goal.", done=False)
+    return PrivacyReward(value=0.01, partial_score=0.01, logic_explanation="Action irrelevant to task goal.", done=False)

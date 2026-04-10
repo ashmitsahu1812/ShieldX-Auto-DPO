@@ -27,6 +27,9 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/ashmitsahu1812/ShieldX-Auto-DPO"
 
+[project.scripts]
+shieldx-server = "server.app:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["server*"]

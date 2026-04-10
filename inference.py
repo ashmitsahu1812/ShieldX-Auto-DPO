@@ -23,12 +23,12 @@ def log_start(task: str, env: str, model: str):
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str] = None):
     err_str = f'"{error}"' if error else "null"
     done_str = "true" if done else "false"
-    print(f"[STEP]  step={step} action={action} reward={reward:.2f} done={done_str} error={err_str}", flush=True)
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_str} error={err_str}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: List[float]):
     success_str = "true" if success else "false"
     reward_str = ",".join([f"{r:.2f}" for r in rewards])
-    print(f"[END]   success={success_str} steps={steps} rewards={reward_str}", flush=True)
+    print(f"[END] success={success_str} steps={steps} rewards={reward_str}", flush=True)
 
 # --- INFERENCE ENGINE ---
 async def get_privacy_action(client: OpenAI, obs: Dict[str, Any]) -> Dict[str, Any]:
@@ -78,37 +78,40 @@ async def run_task(client: OpenAI, task_id: str):
     steps_taken = 0
     success = False
     
-    async with httpx.AsyncClient(timeout=30.0) as http:
-        # Reset Env
-        resp = await http.post(f"{ENV_URL}/reset?task_id={task_id}")
-        obs = resp.json()
-        
-        for step in range(1, 6): # Max Steps
-            action_dict = await get_privacy_action(client, obs)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            # Reset Env
+            resp = await http.post(f"{ENV_URL}/reset?task_id={task_id}")
+            obs = resp.json()
             
-            # Step Env
-            step_resp = await http.post(f"{ENV_URL}/step", json=action_dict)
-            result = step_resp.json()
-            
-            obs = result["observation"]
-            reward = result["reward"]
-            done = result["done"]
-            
-            rewards.append(reward)
-            steps_taken = step
-            
-            log_step(step=step, action=action_dict["operation"] + ":" + action_dict["target"], reward=reward, done=done)
-            
-            if done:
-                break
+            for step in range(1, 6): # Max Steps
+                action_dict = await get_privacy_action(client, obs)
                 
-        success = sum(rewards) > 0.3
+                # Step Env
+                step_resp = await http.post(f"{ENV_URL}/step", json=action_dict)
+                result = step_resp.json()
+                
+                obs = result["observation"]
+                reward = result["reward"]
+                done = result["done"]
+                
+                rewards.append(reward)
+                steps_taken = step
+                
+                log_step(step=step, action=action_dict["operation"] + ":" + action_dict["target"], reward=reward, done=done)
+                
+                if done:
+                    break
+                    
+            success = sum(rewards) > 0.3
+    except Exception as e:
+        print(f"[DEBUG] Task {task_id} encountered an error: {e}", flush=True)
+    finally:
         log_end(success=success, steps=steps_taken, rewards=rewards)
 
 async def main():
     if not HF_TOKEN:
-        print("ERROR: HF_TOKEN not found.")
-        return
+        raise ValueError("HF_TOKEN environment variable is required")
 
     client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
     

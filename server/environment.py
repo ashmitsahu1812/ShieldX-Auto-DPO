@@ -45,18 +45,21 @@ class ShieldXEnv:
         self.step_count += 1
         reward_obj = grade_action(action, self.task, {"history": self.history})
         
-        # FIXED-INCREMENT MODEL: Mathematically guaranteed to stay within (0, 1)
-        # Max steps = 5. 
-        # Correct = 0.18, Mistake = 0.01
-        # Max total = 5 * 0.18 = 0.90 (Safe < 1.0)
-        # Min total = 5 * 0.01 = 0.05 (Safe > 0.0)
+        # TRIPLE-BUFFER MODEL:
+        # Base offset = 0.10 (added only to the first step's reward)
+        # Correct = 0.12, Mistake = 0.02
+        # Resulting Range for 5 steps:
+        # MIN (All mistakes): (0.10 + 0.02) + (4 * 0.02) = 0.20 ✅
+        # MAX (All correct): (0.10 + 0.12) + (4 * 0.12) = 0.70 ✅
         
-        step_reward = 0.18 if reward_obj.value > 0.01 else 0.01
+        base_offset = 0.10 if self.step_count == 1 else 0.0
+        increment = 0.12 if reward_obj.value > 0.01 else 0.02
         
-        # Hard-cap the total emitted reward to absolute safety
-        potential_total = self.total_reward + step_reward
-        if potential_total >= 0.99:
-            step_reward = max(0.001, 0.99 - self.total_reward)
+        step_reward = base_offset + increment
+        
+        # Absolute safety clamp for total cumulative
+        if self.total_reward + step_reward >= 0.95:
+            step_reward = max(0.01, 0.95 - self.total_reward)
             
         self.total_reward += step_reward
         

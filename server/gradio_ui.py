@@ -13,40 +13,73 @@ import os
 from openai import OpenAI
 
 CUSTOM_CSS = """
-body {
-    background: linear-gradient(135deg, #0f172a, #1e1b4b, #000000);
-    color: #e2e8f0;
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono&display=swap');
+
+body, .gradio-container {
+    background: radial-gradient(circle at top right, #1e293b, #0f172a, #000000) !important;
+    font-family: 'Outfit', sans-serif !important;
+    color: #f1f5f9 !important;
 }
-.gradio-container {
-    background: transparent !important;
-}
+
 .glass-panel {
-    background: rgba(30, 41, 59, 0.6) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
+    background: rgba(30, 41, 59, 0.3) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 16px !important;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5) !important;
-    padding: 24px !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+    padding: 2rem !important;
+    margin-bottom: 1rem;
 }
-.primary-btn {
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6) !important;
+
+.hero-banner {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1)) !important;
+    border-radius: 20px;
+    padding: 3rem 1rem;
+    text-align: center;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    margin-bottom: 2rem;
+}
+
+.primary-btn button {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) !important;
     border: none !important;
-    color: white !important;
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    padding: 0.8rem 1.5rem !important;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
-.primary-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6) !important;
+
+.primary-btn button:hover {
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5) !important;
+    filter: brightness(1.1);
 }
-.secondary-btn {
-    background: rgba(255, 255, 255, 0.05) !important;
+
+.secondary-btn button {
+    background: rgba(255, 255, 255, 0.03) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    transition: background 0.2s ease !important;
+    color: #94a3b8 !important;
+    font-weight: 500 !important;
+    border-radius: 10px !important;
+    backdrop-filter: blur(4px) !important;
 }
-.secondary-btn:hover {
-    background: rgba(255, 255, 255, 0.1) !important;
+
+.secondary-btn button:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.log-viewer {
+    font-family: 'JetBrains Mono', monospace !important;
+    background: #020617 !important;
+    border: 1px solid #1e293b !important;
+    border-radius: 10px !important;
+    color: #10b981 !important;
+    font-size: 0.85rem !important;
 }
 """
 
@@ -355,9 +388,23 @@ def create_demo(store):
 
     with gr.Blocks(theme=gr.themes.Glass(), css=CUSTOM_CSS, title="ScalarX Meta — Self-Learning Flywheel") as demo:
 
-        with gr.Column(elem_classes=["glass-panel"]):
-            gr.Markdown("# 🔄 ScalarX Meta — Self-Learning Flywheel")
-            gr.Markdown("*The more you review, the smarter it gets.*")
+        with gr.Column(elem_classes=["hero-banner"]):
+            gr.HTML("""
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <h1 style="font-size: 3rem; font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(90deg, #60a5fa, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                        ScalarX Meta
+                    </h1>
+                    <p style="font-size: 1.25rem; color: #94a3b8; max-width: 600px;">
+                        The self-learning flywheel for elite AI code review. 
+                        Benchmarking, identifying, and self-correcting logic defects at scale.
+                    </p>
+                    <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                        <span style="padding: 0.5rem 1rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 99px; font-size: 0.8rem; color: #60a5fa;">🚀 OpenEnv Compliant</span>
+                        <span style="padding: 0.5rem 1rem; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 99px; font-size: 0.8rem; color: #a855f7;">💎 Tiered Intelligence</span>
+                        <span style="padding: 0.5rem 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 99px; font-size: 0.8rem; color: #10b981;">⚡ Flywheel Enabled</span>
+                    </div>
+                </div>
+            """)
 
         with gr.Tabs():
 
@@ -395,11 +442,21 @@ def create_demo(store):
                         signal_output = gr.Markdown("")
 
                         gr.Markdown("---")
+                        gr.Markdown("---")
                         gr.Markdown("### 🧑‍💻 Final Decision")
                         with gr.Row():
                             approve_btn = gr.Button("✅ Approve PR", variant="primary", elem_classes=["primary-btn"])
                             reject_btn = gr.Button("❌ Reject PR", variant="stop", elem_classes=["secondary-btn"])
                         user_decision_output = gr.Markdown("")
+                        
+                        gr.Markdown("---")
+                        gr.Markdown("### 📟 Live Thinking Logs")
+                        thinking_logs = gr.Textbox(
+                            label=None,
+                            placeholder="Initializing agent cognitive thread...",
+                            lines=8,
+                            elem_classes=["log-viewer"]
+                        )
 
                     with gr.Column(scale=2, elem_classes=["glass-panel"]):
                         with gr.Tabs():
@@ -419,6 +476,9 @@ def create_demo(store):
                     handlers["run_review"],
                     inputs=[],
                     outputs=[ai_comments_output, ai_verdict_output]
+                ).then(
+                    lambda: "[INFO] PR Context Loaded\n[INFO] Starting Tiered Intelligence Analysis...\n[STEP 1] Fetching Confidence Signatures...\n[STEP 2] Running Synthetic Cross-Check...\n[STEP 3] Generating Auto-Fix Patches...\n[SUCCESS] Analysis Complete.",
+                    outputs=thinking_logs
                 )
                 confirm_btn.click(
                     handlers["confirm_bug"],

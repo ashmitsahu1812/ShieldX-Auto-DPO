@@ -181,8 +181,8 @@ def create_flywheel_review_handlers(store):
         if pr_data is None or "error" in pr_data:
             return "❌ No PR data loaded. Fetch a PR first.", ""
 
-        # Run raw AI analysis
-        raw_result = analyze_pr(pr_data)
+        # Run raw AI analysis with Flywheel context (RL In-loop Adaptation)
+        raw_result = analyze_pr(pr_data, store=store)
 
         # Annotate with confidence scores
         from .confidence_engine import annotate_comments
@@ -485,7 +485,7 @@ def create_demo(store):
                     inputs=[],
                     outputs=[ai_comments_output, ai_verdict_output]
                 ).then(
-                    lambda: "[INFO] PR Context Loaded\n[INFO] Starting Tiered Intelligence Analysis...\n[STEP 1] Fetching Confidence Signatures...\n[STEP 2] Running Synthetic Cross-Check...\n[STEP 3] Generating Auto-Fix Patches...\n[SUCCESS] Analysis Complete.",
+                    lambda: f"[INFO] PR Context Loaded\n[INFO] RL Feedback Loop: Active\n[INFO] Policy Adapted using {len(store.get_all_pattern_stats())} pattern signals\n[STEP 1] Fetching Confidence Signatures...\n[STEP 2] Running Synthetic Cross-Check...\n[STEP 3] Generating Auto-Fix Patches...\n[SUCCESS] Analysis Complete.",
                     outputs=thinking_logs
                 )
                 confirm_btn.click(

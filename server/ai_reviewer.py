@@ -24,22 +24,25 @@ if not HF_TOKEN or HF_TOKEN == "your_huggingface_token_here":
     HF_TOKEN = "invalid_token_placeholder"
 
 
-def analyze_pr(pr_data: dict) -> list:
+def analyze_pr(pr_data: dict, store: Optional[Any] = None) -> list:
     """
-    Takes the output of github_fetcher.fetch_full_pr() and sends each
-    file's patch to the AI model for deep code review.
-    
-    Returns a list of structured review comments:
-    [
-        {
-            "file": "style.css",
-            "severity": "warning" | "error" | "info",
-            "comment": "10+ word explanation of the issue found."
-        },
-        ...
-    ]
+    Analyzes a PR using real diffs, now adaptive using historical Flywheel signals.
     """
     client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    
+    # ── RL Feedback Loop: Pattern Accuracy Advisory ─────────
+    performance_advisory = ""
+    if store:
+        stats = store.get_all_pattern_stats()
+        low_acc = [k for k, v in stats.items() if v.get("accuracy", 100) < 50 and v.get("times_flagged", 0) >= 2]
+        high_acc = [k for k, v in stats.items() if v.get("accuracy", 0) >= 80 and v.get("times_flagged", 0) >= 2]
+        
+        if low_acc or high_acc:
+            performance_advisory = "\n### 📈 Historical Performance Advisory (RL Feedback)\n"
+            if low_acc:
+                performance_advisory += f"- **CAUTION**: You have historically flagged these patterns incorrectly: `{', '.join(low_acc)}`. Double-check before flagging them again.\n"
+            if high_acc:
+                performance_advisory += f"- **EXPERT**: You have high accuracy with these patterns: `{', '.join(high_acc)}`. Maintain focus on these.\n"
     
     metadata = pr_data["metadata"]
     files = pr_data["files"]
@@ -52,9 +55,11 @@ def analyze_pr(pr_data: dict) -> list:
             patch = patch[:5000] + "\n... (diff truncated for length) ..."
         diff_context += f"\n--- File: {f['filename']} ({f['status']}) ---\n"
         diff_context += f"  Additions: {f['additions']}, Deletions: {f['deletions']}\n"
-        diff_context += f"```diff\n{patch}\n```\n"
+    diff_context += f"```diff\n{patch}\n```\n"
 
     prompt = f"""You are a Senior Software Engineer performing a thorough code review.
+
+{performance_advisory}
 
 ### Pull Request Metadata (REAL DATA — do NOT hallucinate or make up information)
 - **Title**: {metadata['title']}

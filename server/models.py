@@ -24,7 +24,7 @@ class PrivacyObservation(BaseModel):
 
 class PrivacyReward(BaseModel):
     """Reward model scoring the compliance action."""
-    value: float = Field(..., ge=0.0, le=1.0)
+    value: float = Field(..., description="The reward value assigned by the grader.")
     partial_score: float = Field(..., description="Value before normalization.")
     logic_explanation: str = Field(..., description="Why this reward was given.")
     done: bool = False

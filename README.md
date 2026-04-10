@@ -1,3 +1,17 @@
+---
+title: ShieldX - Autonomous DPO
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+tags:
+  - openenv
+  - privacy
+  - rl
+---
+
 # ShieldX: The Autonomous Data Privacy Officer (DPO)
 
 ShieldX is a real-world Reinforcement Learning environment for automated privacy governance. Agents are tasked with auditing databases, fulfilling Data Subject Access Requests (DSARs), and managing regulatory compliance (GDPR/CCPA/DPA) in high-stakes clinical and corporate environments.

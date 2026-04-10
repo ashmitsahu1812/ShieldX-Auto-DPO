@@ -1,293 +1,72 @@
-from typing import Dict, Any
+import json
+from typing import List, Dict, Any
 
-SYNTAX_REVIEW_TASKS = [
+TASKS = [
     {
-        "pr_id": "PR-101",
-        "title": "Update user profile calculation",
-        "description": "Fixing the user profile calculation logic to include age properly.",
-        "files_changed": [
-            {
-                "filename": "profiles.py",
-                "diff": "@@ -10,6 +10,6 @@\n def calculate_metrics(user):\n-    age = user.get('age', 0)\n+    Age = user.get('Age', 0)\n     score = age * 1.5\n     return score"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "syntax", "file": "profiles.py", "keyword": "Age", "line": 12}
-        ],
-        "expected_action": "request_changes"
+        "id": "task-001-pii-scrubber",
+        "name": "PII Discovery and Redaction",
+        "difficulty": "easy",
+        "instruction": "Scan the provided support ticket log. Redact any PII found (Name, Email, SSN, IP Address).",
+        "data": "Ticket #102: User 'John Doe' (email: john.d@gmail.com, SSN: 999-00-1111) is reporting a login error from IP 192.168.1.1.",
+        "region": "US-East-1",
+        "policy": "GDPR Compliance: All PII must be redacted in non-production logs.",
+        "ground_truth": ["John Doe", "john.d@gmail.com", "999-00-1111", "192.168.1.1"]
     },
     {
-        "pr_id": "PR-102",
-        "title": "Use mutable default list in function",
-        "description": "Refactoring data process function to take a default empty list.",
-        "files_changed": [
-            {
-                "filename": "data.py",
-                "diff": "@@ -10,3 +10,3 @@\n-def process_data(data, results=None):\n-    if results is None:\n-        results = []\n+def process_data(data, results=[]):"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "syntax", "file": "data.py", "keyword": "mutable", "line": 10}
-        ],
-        "expected_action": "request_changes"
+        "id": "task-002-dsar-export",
+        "name": "Subject Access Request (DSAR)",
+        "difficulty": "medium",
+        "instruction": "A customer (ID: USER_778) has requested all their data. Filter the database logs and export only their specific entries.",
+        "data": json.dumps([
+            {"user_id": "USER_778", "activity": "login", "timestamp": "2026-04-10T10:00:00"},
+            {"user_id": "USER_123", "activity": "purchase", "timestamp": "2026-04-10T10:05:00"},
+            {"user_id": "USER_778", "activity": "logout", "timestamp": "2026-04-10T10:10:00"}
+        ]),
+        "region": "EU-West-1",
+        "policy": "Right of Access: Users must receive a copy of their personal data only.",
+        "ground_truth": ["USER_778"]
     },
     {
-        "pr_id": "PR-103",
-        "title": "Fix indentation in loop",
-        "description": "Correcting return statement indentation.",
-        "files_changed": [
-            {
-                "filename": "loops.py",
-                "diff": "@@ -5,4 +5,4 @@\n def sum_positive(nums):\n     total = 0\n     for n in nums:\n-        if n > 0:\n-            total += n\n-    return total\n+        if n > 0: total += n\n+    return total"
-            }
-        ],
-        "ground_truth_bugs": [],
-        "expected_action": "approve"
+        "id": "task-003-selective-erasure",
+        "name": "The Right to be Forgotten (Selective)",
+        "difficulty": "medium",
+        "instruction": "Fulfill the erasure request for 'Alice'. Delete her account profile but RETAIN her billing record for tax auditing purposes.",
+        "data": json.dumps({
+            "profile": {"name": "Alice Smith", "age": 28, "pref": "Dark Mode"},
+            "billing": {"invoice_id": "INV-2026-001", "amount": 99.99, "status": "paid"}
+        }),
+        "region": "US-West-2",
+        "policy": "Erasure Exception: Retention is permitted for legal/tax compliance.",
+        "ground_truth_delete": ["profile"],
+        "ground_truth_retain": ["billing"]
+    },
+    {
+        "id": "task-004-cross-border-audit",
+        "name": "Cross-Border Transfer Compliance",
+        "difficulty": "hard",
+        "instruction": "Detect if EU user data is being transferred to US without the 'SCC' (Standard Contractual Clauses) flag. If found, RETAIN and mark for Audit.",
+        "data": json.dumps([
+            {"src": "EU", "dst": "US", "id": "X-001", "scc": True},
+            {"src": "EU", "dst": "US", "id": "X-002", "scc": False}
+        ]),
+        "region": "Global",
+        "policy": "Data Residency: SCCs are mandatory for EU->US transfers.",
+        "ground_truth": ["X-002"]
+    },
+    {
+        "id": "task-005-breach-reporting",
+        "name": "Automated Breach Disclosure",
+        "difficulty": "hard",
+        "instruction": "Identify all distinct users affected by the SQL injection attack in this log snippet.",
+        "data": "LOG: 2026-04-10 12:00:05 - SQL_INJECTION - SELECT * FROM users WHERE id IN (101, 102, 105, 107) - EXFILTRATED",
+        "region": "US-East-1",
+        "policy": "Data Breach Notification: Identify exactly which IDs require disclosure.",
+        "ground_truth": ["101", "102", "105", "107"]
     }
 ]
 
-BUG_DETECTION_TASKS = [
-    {
-        "pr_id": "PR-201",
-        "title": "Add retry mechanism for API client",
-        "description": "This PR adds a naive retry mechanism for the API client.",
-        "files_changed": [
-            {
-                "filename": "client.py",
-                "diff": "@@ -45,7 +45,8 @@\n def fetch_data(url):\n     for i in range(3):\n         response = requests.get(url)\n-        if response.status_code == 200:\n+        if response.status_code = 200:\n             return response.json()\n     return None"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "client.py", "keyword": "status_code", "line": 48}
-        ],
-        "expected_action": "request_changes"
-    },
-    {
-        "pr_id": "PR-202",
-        "title": "Fix off-by-one error in pagination",
-        "description": "Adjusting the pagination index.",
-        "files_changed": [
-            {
-                "filename": "pagination.py",
-                "diff": "@@ -15,5 +15,5 @@\n def get_page(items, page, page_size):\n-    start = page * page_size\n+    start = (page - 1) * page_size\n     end = start + page_size\n-    return items[start:end+1]\n+    return items[start:end]"
-            }
-        ],
-        "ground_truth_bugs": [],
-        "expected_action": "approve"
-    },
-    {
-        "pr_id": "PR-203",
-        "title": "Update discount calculation",
-        "description": "Applies a discount but forgets to return the modified value.",
-        "files_changed": [
-            {
-                "filename": "cart.py",
-                "diff": "@@ -20,4 +20,4 @@\n def apply_discount(cart, discount):\n     for item in cart:\n         item['price'] = item['price'] * (1 - discount)\n-    return cart\n+    # optimization, cart mutated in place"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "cart.py", "keyword": "mutated", "line": 23}
-        ],
-        "expected_action": "request_changes"
-    },
-    {
-        "pr_id": "PR-204",
-        "title": "Fix infinite recursion in tree walk",
-        "description": "Correcting the base case for the recursive call.",
-        "files_changed": [
-            {
-                "filename": "tree.py",
-                "diff": "@@ -10,3 +10,3 @@\n def walk(node):\n-    if not node: return\n+    if node is None: return\n     walk(node.left)\n     walk(node.right)"
-            }
-        ],
-        "ground_truth_bugs": [],
-        "expected_action": "approve"
-    }
-]
-
-FULL_REVIEW_TASKS = [
-    {
-        "pr_id": "PR-301",
-        "title": "Feature: Implement caching layer for DB queries",
-        "description": "Added a Redis caching layer to speed up user fetching.",
-        "files_changed": [
-            {
-                "filename": "db.py",
-                "diff": "@@ -20,6 +20,12 @@\n def get_user(user_id):\n+    cache_key = f'user_key'\n+    cached = redis.get(cache_key)\n+    if cached:\n+        return json.loads(cached)\n     user = db.query(User).filter(User.id == user_id).first()\n+    redis.set(cache_key, json.dumps(user.to_dict()))\n     return user"
-            },
-            {
-                "filename": "requirements.txt",
-                "diff": "@@ -5,2 +5,3 @@\n sqlalchemy==1.4.32\n+redis==4.3.4"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "db.py", "keyword": "user_key", "line": 21}
-        ],
-        "expected_action": "request_changes"
-    },
-    {
-        "pr_id": "PR-302",
-        "title": "Bugfix: Improve memory management in user cache",
-        "description": "This PR adds a memory-efficient cache for user objects.",
-        "files_changed": [
-            {
-                "filename": "cache.py",
-                "diff": "@@ -1,6 +1,9 @@\n class UserCache:\n-    _data = {}\n+    _data = {}\n+\n     @classmethod\n     def set(cls, key, val):\n-        cls._data[key] = val\n+        # Optimization: always keep it in memory for speed\n+        cls._data[key] = val"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "cache.py", "keyword": "memory", "line": 8}
-        ],
-        "expected_action": "request_changes"
-    },
-    {
-        "pr_id": "PR-303",
-        "title": "Feature: Distributed counter for analytics",
-        "description": "Implements a counter for global user events.",
-        "files_changed": [
-            {
-                "filename": "analytics.py",
-                "diff": "@@ -5,4 +5,8 @@\n GLOBAL_COUNT = 0\n \n def increment_counter():\n-    pass\n+    global GLOBAL_COUNT\n+    current = GLOBAL_COUNT\n+    # intensive calculation here\n+    GLOBAL_COUNT = current + 1"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "analytics.py", "keyword": "race", "line": 11}
-        ],
-        "expected_action": "request_changes"
-    },
-    {
-        "pr_id": "PR-304",
-        "title": "Data migration script for user status",
-        "description": "Script to update user account active status.",
-        "files_changed": [
-            {
-                "filename": "migrate.py",
-                "diff": "@@ -5,4 +5,4 @@\n def run_migration(db):\n-    db.execute(\"UPDATE users SET status='active'\")\n+    db.execute(\"UPDATE users SET status='active' WHERE status IS NULL\")"
-            }
-        ],
-        "ground_truth_bugs": [],
-        "expected_action": "approve"
-    }
-]
-
-ADVERSARIAL_TASKS = [
-    {
-        "pr_id": "PR-401",
-        "title": "Fix user validation check",
-        "description": "Making sure we check if user is banned properly.",
-        "files_changed": [
-            {
-                "filename": "auth.py",
-                "diff": "@@ -10,3 +10,4 @@\n def is_valid_user(user):\n-    return not user.is_banned\n+    if user.is_banned == False:\n+        return True\n+    return True"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "auth.py", "keyword": "return True", "line": 13}
-        ],
-        "expected_action": "request_changes",
-        "pr_type": "adversarial"
-    },
-    {
-        "pr_id": "PR-402",
-        "title": "Calculate user metrics averages",
-        "description": "Adds a simple average wrapper.",
-        "files_changed": [
-            {
-                "filename": "stats.py",
-                "diff": "@@ -5,2 +5,3 @@\n+def average(nums):\n+    return sum(nums) / len(nums)"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "stats.py", "keyword": "empty", "line": 7}
-        ],
-        "expected_action": "request_changes",
-        "pr_type": "adversarial"
-    },
-    {
-        "pr_id": "PR-403",
-        "title": "Fix off by one loop",
-        "description": "Correcting iteration boundaries.",
-        "files_changed": [
-            {
-                "filename": "processor.py",
-                "diff": "@@ -20,3 +20,3 @@\n def process_all(arr):\n-    for i in range(len(arr)):\n+    for i in range(len(arr)-1):\n         process(arr[i])"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "processor.py", "keyword": "loop", "line": 22}
-        ],
-        "expected_action": "request_changes",
-        "pr_type": "adversarial"
-    },
-    {
-        "pr_id": "PR-404",
-        "title": "Security: Implement SHA-256 secure hashing",
-        "description": "Upgrading our password hashing to follow industry standards.",
-        "files_changed": [
-            {
-                "filename": "security.py",
-                "diff": "@@ -1,5 +1,5 @@\n-import hashlib\n+import hashlib\n \n def hash_password(password):\n-    return hashlib.md5(password.encode()).hexdigest()\n+    # Upgraded to SHA-256 secure standard\n+    return hashlib.md5(password.encode()).hexdigest()"
-            }
-        ],
-        "ground_truth_bugs": [
-            {"type": "logic", "file": "security.py", "keyword": "md5", "line": 6}
-        ],
-        "expected_action": "request_changes",
-        "pr_type": "adversarial"
-    }
-]
-
-TASKS_MAP = {
-    "syntax_review": SYNTAX_REVIEW_TASKS,
-    "bug_detection": BUG_DETECTION_TASKS,
-    "full_review": FULL_REVIEW_TASKS,
-    "adversarial_review": ADVERSARIAL_TASKS
-}
-
-def get_task(task_type: str, index: int = 0) -> Dict[str, Any]:
-    """Get a task by type and index. Supports flywheel_cases via the store."""
-    if task_type == "flywheel_cases":
-        return _get_flywheel_task(index)
-
-    tasks = TASKS_MAP.get(task_type, [])
-    if index < len(tasks):
-        return tasks[index]
-    return tasks[0] if tasks else {}
-
-
-def _get_flywheel_task(index: int = 0) -> Dict[str, Any]:
-    """Retrieve a simulation case from the flywheel store."""
-    try:
-        from .flywheel_store import FlywheelStore
-        store = FlywheelStore()
-        cases = store.get_all_cases()
-        if index < len(cases):
-            return cases[index]
-        return cases[0] if cases else {}
-    except Exception:
-        return {}
-
-
-def get_domain_tasks(language: str = "python", framework: str = "general", limit: int = 3) -> list:
-    """
-    Merge built-in seed cases with live-generated flywheel cases
-    for domain-matched benchmarking.
-    """
-    try:
-        from .flywheel_store import FlywheelStore
-        store = FlywheelStore()
-        return store.get_domain_cases(language=language, framework=framework, limit=limit)
-    except Exception:
-        return []
-
-
-def get_task_count(task_type: str) -> int:
-    """Return the number of available tasks for a given type."""
-    if task_type == "flywheel_cases":
-        try:
-            from .flywheel_store import FlywheelStore
-            store = FlywheelStore()
-            return len(store.get_all_cases())
-        except Exception:
-            return 0
-    return len(TASKS_MAP.get(task_type, []))
+def get_task(task_id: str) -> Dict[str, Any]:
+    for t in TASKS:
+        if t["id"] == task_id:
+            return t
+    return TASKS[0]

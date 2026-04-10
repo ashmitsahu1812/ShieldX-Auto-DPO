@@ -1,77 +1,30 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal, Dict
-from datetime import datetime
+from typing import List, Optional, Dict, Any, Literal
 
-class FileChange(BaseModel):
-    filename: str
-    diff: str
+class PrivacyAction(BaseModel):
+    """Action model for the DPO Agent."""
+    operation: Literal["redact", "delete", "export", "retain", "notify"] = Field(
+        ..., description="The privacy operation to perform."
+    )
+    target: str = Field(..., description="The field name, record ID, or user ID to operate on.")
+    legal_basis: Optional[str] = Field(
+        None, description="The legal justification (e.g., 'GDPR Art. 6', 'Financial retention law')."
+    )
+    reasoning: str = Field(..., description="Brief thought process for the action.")
 
-class Observation(BaseModel):
-    pr_id: str
-    title: str
-    description: str
-    files_changed: List[FileChange]
-    comments_history: List[str]
+class PrivacyObservation(BaseModel):
+    """Observation model for the DPO Agent."""
+    task_id: str
+    instruction: str
+    data_buffer: str = Field(..., description="The current view of the data being audited.")
+    policy_context: str = Field(..., description="Company privacy policy and regional laws.")
+    region: str = Field(..., description="The data storage region (e.g., 'EU-West-1', 'US-East-1').")
     step_count: int
     max_steps: int
-    last_action_feedback: str
 
-class Action(BaseModel):
-    action_type: Literal["comment", "approve", "request_changes"]
-    file: Optional[str] = None
-    line: Optional[int] = None
-    comment: Optional[str] = None
-
-class Reward(BaseModel):
-    reward: float
-
-class Info(BaseModel):
-    done: bool
-    score: Optional[float] = None
-    message: Optional[str] = None
-    confidence_gate: Optional[Dict] = None  # {passed, score, cases_run}
-
-
-# ── Flywheel Models ──────────────────────────────────────────
-
-class FlywheelCase(BaseModel):
-    """A simulation case in the flywheel library."""
-    case_id: str
-    pr_id: str
-    title: str
-    description: str
-    files_changed: List[dict]
-    ground_truth_bugs: List[dict]
-    expected_action: str = "request_changes"
-    source: Literal["seed", "live_confirmed"] = "seed"
-    language: str = "python"
-    framework: str = "general"
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-
-
-class DeveloperSignal(BaseModel):
-    """Feedback from a developer on an AI review finding."""
-    session_id: str
-    signal_type: Literal["confirm_bug", "dismiss", "approve", "reject"]
-    bug_index: Optional[int] = None  # Which AI finding (0-indexed)
-    comment: Optional[str] = None
-
-
-class ConfidenceAnnotation(BaseModel):
-    """An AI review comment enriched with confidence data."""
-    file: str
-    severity: str
-    comment: str
-    confidence: float = 0.0           # 0-100 percentage
-    confidence_source: str = "general_baseline"  # or "project_specific"
-    is_novelty: bool = False
-
-
-class PatternStats(BaseModel):
-    """Historical accuracy for a specific bug pattern."""
-    keyword: str
-    times_flagged: int = 0
-    times_confirmed: int = 0
-    times_dismissed: int = 0
-    decay_weight: float = 1.0  # Reduced on each dismissal
-    accuracy: float = 0.0      # confirmed / flagged
+class PrivacyReward(BaseModel):
+    """Reward model scoring the compliance action."""
+    value: float = Field(..., ge=0.0, le=1.0)
+    partial_score: float = Field(..., description="Value before normalization.")
+    logic_explanation: str = Field(..., description="Why this reward was given.")
+    done: bool = False

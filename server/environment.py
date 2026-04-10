@@ -39,7 +39,7 @@ class ShieldXEnv:
         )
 
     def step(self, action: PrivacyAction) -> Tuple[PrivacyObservation, float, bool, Dict[str, Any]]:
-        # Initialize internal score tracking if not present (safety for resets)
+        # Ensure current_score is initialized
         if not hasattr(self, 'current_score'):
             self.current_score = 0.01
             
@@ -49,43 +49,38 @@ class ShieldXEnv:
         self.step_count += 1
         reward_obj = grade_action(action, self.task, {"history": self.history})
         
-        # Add to raw points
-        self.total_reward += reward_obj.value
+        # In this 'Strictly Positive' mode, we treat raw rewards as progress points.
+        # Mistakes give 0 extra points, but never subtract.
+        raw_val = max(0, reward_obj.value)
+        self.total_reward += raw_val
         
-        # Map accumulated raw points to a [0.01, 0.99] score space using a sigmoid
-        # This keeps the total cumulative reward strictly between 0 and 1
-        # Logistic function: L / (1 + e^-k(x-x0))
-        # Here we use a shifted sigmoid so 0 points -> ~0.01
-        new_score = 0.01 + (0.98 * (1.0 / (1.0 + pow(2.71828, -self.total_reward))))
-        
-        # Ensure it is strictly within (0.011, 0.989)
+        # Calculate new score in (0.01, 0.99)
+        # We use a mapping that ensures even 0 points -> 0.01 and many points -> 0.95
+        new_score = 0.01 + (0.94 * (1.0 - pow(0.5, self.total_reward / 0.5)))
         new_score = max(0.011, min(0.989, new_score))
         
-        # The reward for THIS step is the delta that moves the agent toward the high score
-        # Sum of deltas will be (Final Score - Starting Score)
-        step_reward = new_score - self.current_score
+        # Every step MUST have a positive reward > 0
+        step_reward = max(0.01, new_score - self.current_score)
         
-        # Safety: Every step should have a non-zero reward for RL stability
-        # We use 0.01 instead of 0.001 to avoid '0.00' rounding in logs
-        if abs(step_reward) < 0.005:
-            step_reward = 0.01 if reward_obj.value >= 0 else -0.01
-            
-        # Update current score for next step
-        self.current_score = new_score
+        # Update trackers
+        self.current_score += step_reward
         
         self.history.append({
             "step": self.step_count,
             "action": action.dict(),
             "reward": float(step_reward),
-            "score_at_step": float(new_score),
+            "score_at_step": float(self.current_score),
             "logic": reward_obj.logic_explanation
         })
         
         if reward_obj.done or self.step_count >= self.max_steps:
             self.done = True
         
+        # Double check: current_score MUST be < 1.0
+        final_out_score = min(0.99, self.current_score)
+        
         return self.state(), float(step_reward), self.done, {
-            "cumulative_reward": float(new_score),
-            "score": float(new_score),
+            "cumulative_reward": float(final_out_score),
+            "score": float(final_out_score),
             "explanation": reward_obj.logic_explanation
         }

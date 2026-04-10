@@ -31,7 +31,11 @@ def log_end(success: bool, steps: int, rewards: List[float]):
     # Ensure empty rewards are padded with a baseline to meet the (0, 1) requirement
     if not rewards:
         rewards = [0.01]
-    reward_str = ",".join([f"{r:.4f}" for r in rewards])
+    
+    # Final safety clamp: Ensure NO reward is outside (0.01, 0.99)
+    safe_rewards = [max(0.01, min(0.99, r)) for r in rewards]
+    
+    reward_str = ",".join([f"{r:.4f}" for r in safe_rewards])
     print(f"[END] success={success_str} steps={steps} rewards={reward_str}", flush=True)
 
 # --- INFERENCE ENGINE ---

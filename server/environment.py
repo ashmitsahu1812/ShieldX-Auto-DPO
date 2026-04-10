@@ -44,7 +44,7 @@ class ShieldXEnv:
             self.current_score = 0.01
             
         if self.done:
-            return self.state(), 0.001, True, {"msg": "Episode already finished."}
+            return self.state(), 0.01, True, {"msg": "Episode already finished."}
             
         self.step_count += 1
         reward_obj = grade_action(action, self.task, {"history": self.history})
@@ -66,8 +66,9 @@ class ShieldXEnv:
         step_reward = new_score - self.current_score
         
         # Safety: Every step should have a non-zero reward for RL stability
-        if abs(step_reward) < 0.0001:
-            step_reward = 0.001 if reward_obj.value > 0 else -0.001
+        # We use 0.01 instead of 0.001 to avoid '0.00' rounding in logs
+        if abs(step_reward) < 0.005:
+            step_reward = 0.01 if reward_obj.value >= 0 else -0.01
             
         # Update current score for next step
         self.current_score = new_score

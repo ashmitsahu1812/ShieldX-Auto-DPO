@@ -27,12 +27,22 @@ def evaluate_breach(action: PrivacyAction, task: Dict[str, Any]) -> PrivacyRewar
 
 def grade_action(action: PrivacyAction, task: Dict[str, Any], state: Dict[str, Any]) -> PrivacyReward:
     t_id = task["id"]
+    history = state.get("history", [])
+    
+    # RL Robustness: Check if this exact target was already correctly handled
+    already_done = any(h["action"]["target"] == action.target and h["reward"] > 0 for h in history)
+    if already_done:
+        return PrivacyReward(value=0.0, partial_score=0.0, logic_explanation=f"Duplicate action: Redundancy identified for {action.target}", done=False)
+
     if "pii-scrubber" in t_id:
         return evaluate_pii_redaction(action, task)
     elif "erasure" in t_id:
         return evaluate_erasure(action, task)
     elif "breach" in t_id:
         return evaluate_breach(action, task)
+    
+    # Task 2 & 4: Correct targeting returns terminal success
     if action.target in task.get("ground_truth", []):
-        return PrivacyReward(value=1.0, partial_score=1.0, logic_explanation="Correct target identified.", done=True)
-    return PrivacyReward(value=0.0, partial_score=0.0, logic_explanation="Action recorded but no progress made.", done=False)
+        return PrivacyReward(value=1.0, partial_score=1.0, logic_explanation="Target correctly processed.", done=True)
+    
+    return PrivacyReward(value=0.0, partial_score=0.0, logic_explanation="Action irrelevant to task goal.", done=False)

@@ -7,7 +7,4 @@ python-dotenv
 gymnasium
 jinja2
 python-multipart
-sh
-ripgrep
-gradio
 openenv-core

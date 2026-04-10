@@ -1,11 +1,16 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from .models import PrivacyAction, PrivacyObservation, PrivacyReward
 from .environment import ShieldXEnv
-from .gradio_ui import create_shieldx_demo
-import gradio as gr
 from typing import Dict, Any
+import os
 
-app = FastAPI(title="ShieldX: Autonomous DPO Environment")
+app = FastAPI(title="ShieldX: Autonomous DPO Dashboard")
+
+# Mount static files
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 env_registry: Dict[str, ShieldXEnv] = {}
 
@@ -13,6 +18,10 @@ def get_session_env(session_id: str = "default") -> ShieldXEnv:
     if session_id not in env_registry:
         env_registry[session_id] = ShieldXEnv()
     return env_registry[session_id]
+
+@app.get("/")
+def read_index():
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 @app.get("/health")
 def health():
@@ -39,9 +48,6 @@ def step(action: PrivacyAction):
         "done": done,
         "info": info
     }
-
-# Mount Gradio for HF Spaces UI
-app = gr.mount_gradio_app(app, create_shieldx_demo(), path="/")
 
 if __name__ == "__main__":
     import uvicorn

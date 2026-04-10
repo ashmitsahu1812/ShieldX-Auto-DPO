@@ -330,6 +330,10 @@ Share feedback: 👉 [{meta['html_url']}]({meta['html_url']})
         "export_dpo": lambda: (
             f"✅ **DPO Dataset Exported!**\n\nFound {len(store.export_dpo_pairs())} preference pairs in historical flywheel signals.\n\nFile saved to: `training/dpo_preferences.jsonl`",
             json.dumps(store.export_dpo_pairs(), indent=2)
+        ),
+        "run_auto_synthetic": lambda: (
+            store.add_synthetic_batch(count=3),
+            "✅ **Synthetic Generation Complete!** 3 new simulation cases brainstormed and added to library."
         )
     }
 
@@ -507,6 +511,25 @@ def create_demo(store):
                 dashboard_refresh_btn = gr.Button("🔄 Refresh Dashboard", variant="secondary")
 
                 dashboard_refresh_btn.click(
+                    lambda: get_dashboard_data(store),
+                    inputs=[],
+                    outputs=[dashboard_display]
+                )
+
+                gr.Markdown("---")
+                with gr.Column(elem_classes=["glass-panel"]):
+                    gr.Markdown("### 🛠️ Automation Center")
+                    gr.Markdown("Automated Synthetic Data Generation: brain-storm new Simulation Cases using LLM.")
+                    with gr.Row():
+                        gen_count = gr.Slider(minimum=1, maximum=10, value=3, step=1, label="Batch Size")
+                        auto_gen_btn = gr.Button("🚀 Generate Synthetic Cases", variant="primary", elem_classes=["primary-btn"])
+                    gen_status = gr.Markdown("")
+
+                auto_gen_btn.click(
+                    handlers["run_auto_synthetic"],
+                    inputs=[],
+                    outputs=[gen_status]
+                ).then(
                     lambda: get_dashboard_data(store),
                     inputs=[],
                     outputs=[dashboard_display]

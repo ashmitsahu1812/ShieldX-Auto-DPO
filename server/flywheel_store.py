@@ -211,6 +211,27 @@ class FlywheelStore:
         logger.info(f"Added flywheel case: {case_id}")
         return case_id
 
+    def add_synthetic_batch(self, count: int = 3, api_base: str = None, api_key: str = None, model_name: str = "gpt-4o-mini") -> List[str]:
+        """Automatically generate and ingest a batch of synthetic PR cases."""
+        from .synthetic_generator import SyntheticGenerator
+        
+        generator = SyntheticGenerator(
+            api_base=api_base or "https://api.openai.com/v1",
+            api_key=api_key or os.getenv("HF_TOKEN"), # Fallback to HF_TOKEN as api_key for convenience
+            model_name=model_name
+        )
+        
+        new_ids = []
+        for _ in range(count):
+            try:
+                case_data = generator.generate_case()
+                case_id = self.add_simulation_case(case_data)
+                new_ids.append(case_id)
+            except Exception as e:
+                logger.error(f"Failed to generate synthetic case in batch: {e}")
+                
+        return new_ids
+
     def get_domain_cases(
         self,
         language: str = "python",

@@ -27,7 +27,7 @@ class SyntheticGenerator:
         self.model_name = model_name
 
     def generate_case(self, topic: str = None) -> Dict[str, Any]:
-        """Generate a single high-quality synthetic PR case."""
+        """Generate a single high-quality synthetic PR case with robust fallback."""
         if not topic:
             topic = random.choice(BUG_TOPICS)
             
@@ -44,42 +44,45 @@ JSON SCHEMA:
   "files_changed": [
     {{
       "filename": "path/to/buggy_file.py",
-      "diff": "@@ -1,5 +1,5 @@\\n unified diff patch containing the bug"
+      "diff": "@@ -1,5 +1,5 @@\\n unified diff patch"
     }}
   ],
-  "ground_truth_bugs": [
-    {{
-      "type": "logic|security|style",
-      "file": "path/to/buggy_file.py",
-      "keyword": "one-word-keyword-for-the-bug"
-    }}
-  ],
+  "ground_truth_bugs": [ {{ "type": "logic", "file": "path/to/buggy_file.py", "keyword": "bug" }} ],
   "expected_action": "request_changes",
-  "language": "python|javascript|go|css",
-  "framework": "general|django|react"
+  "language": "python",
+  "framework": "general"
 }}
-
-IMPORTANT:
-1. The 'diff' MUST show the bug clearly using + markers.
-2. The code must look professional and idiomatic.
-3. Return ONLY the JSON object. No prose.
+IMPORTANT: Return ONLY the JSON object. No prose.
 """
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.8,
-                max_tokens=1500
-            )
-            content = response.choices[0].message.content.strip()
-            # Robust JSON extraction
-            start = content.find("{")
-            end = content.rfind("}")
-            if start == -1 or end == -1:
-                raise ValueError("Model failed to output valid JSON")
-            
-            case_data = json.loads(content[start:end+1])
-            return case_data
-        except Exception as e:
-            logger.error(f"Synthetic generation failed: {e}")
-            raise e
+        # Tiered models
+        models_to_try = [self.model_name, "openai", "mistral-7b"]
+        last_err = None
+
+        for model in models_to_try:
+            try:
+                # If we're using a fallback model, we might need a different client or just change param
+                client_to_use = self.client
+                if model in ["openai", "mistral-7b"] and "huggingface" in str(self.client.base_url):
+                     # Fallback to Pollinations if HF fails
+                     from openai import OpenAI
+                     client_to_use = OpenAI(base_url="https://text.pollinations.ai/openai", api_key="not-needed")
+
+                response = client_to_use.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.8,
+                    max_tokens=1500,
+                    timeout=60
+                )
+                content = response.choices[0].message.content.strip()
+                start = content.find("{")
+                end = content.rfind("}")
+                if start == -1 or end == -1: continue
+                
+                return json.loads(content[start:end+1])
+            except Exception as e:
+                last_err = e
+                logger.warning(f"Synthetic generation failed for model {model}: {e}")
+                continue
+        
+        raise last_err or Exception("All generation models failed")

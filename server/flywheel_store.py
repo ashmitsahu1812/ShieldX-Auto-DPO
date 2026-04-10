@@ -211,14 +211,19 @@ class FlywheelStore:
         logger.info(f"Added flywheel case: {case_id}")
         return case_id
 
-    def add_synthetic_batch(self, count: int = 3, api_base: str = None, api_key: str = None, model_name: str = "gpt-4o-mini") -> List[str]:
+    def add_synthetic_batch(self, count: int = 3, api_base: str = None, api_key: str = None, model_name: str = None) -> List[str]:
         """Automatically generate and ingest a batch of synthetic PR cases."""
         from .synthetic_generator import SyntheticGenerator
         
+        # Use project-wide environment variables by default
+        base_url = api_base or os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+        key = api_key or os.getenv("HF_TOKEN")
+        model = model_name or os.getenv("MODEL_NAME", "openai") # 'openai' works on HF router and Pollinations
+        
         generator = SyntheticGenerator(
-            api_base=api_base or "https://api.openai.com/v1",
-            api_key=api_key or os.getenv("HF_TOKEN"), # Fallback to HF_TOKEN as api_key for convenience
-            model_name=model_name
+            api_base=base_url,
+            api_key=key or "not-needed",
+            model_name=model
         )
         
         new_ids = []

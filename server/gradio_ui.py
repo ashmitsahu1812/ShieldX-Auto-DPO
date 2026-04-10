@@ -331,9 +331,9 @@ Share feedback: 👉 [{meta['html_url']}]({meta['html_url']})
             f"✅ **DPO Dataset Exported!**\n\nFound {len(store.export_dpo_pairs())} preference pairs in historical flywheel signals.\n\nFile saved to: `training/dpo_preferences.jsonl`",
             json.dumps(store.export_dpo_pairs(), indent=2)
         ),
-        "run_auto_synthetic": lambda: (
-            store.add_synthetic_batch(count=3),
-            "✅ **Synthetic Generation Complete!** 3 new simulation cases brainstormed and added to library."
+        "run_auto_synthetic": lambda count: (
+            store.add_synthetic_batch(count=int(count)),
+            f"✅ **Synthetic Generation Complete!** {int(count)} new simulation cases brainstormed and added to library."
         )
     }
 
@@ -527,7 +527,7 @@ def create_demo(store):
 
                 auto_gen_btn.click(
                     handlers["run_auto_synthetic"],
-                    inputs=[],
+                    inputs=[gen_count],
                     outputs=[gen_status]
                 ).then(
                     lambda: get_dashboard_data(store),

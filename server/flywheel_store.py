@@ -307,6 +307,33 @@ class FlywheelStore:
         if session:
             session["signals"].append(signal)
 
+    def export_dpo_pairs(self) -> List[Dict[str, Any]]:
+        """
+        Convert historical signals into (Prompt, Chosen, Rejected) pairs for DPO.
+        Chosen = 'confirm_bug' signal.
+        Rejected = 'dismiss' signal.
+        """
+        pairs = []
+        for session in self.review_sessions.values():
+            pr_data = session.get("pr_data")
+            # Build the approximate prompt used for the analysis
+            prompt = f"PR: {pr_data['metadata']['title']}\nDescription: {pr_data['metadata']['description']}"
+            
+            signals = session.get("signals", [])
+            confirmed = [s for s in signals if s["signal_type"] == "confirm_bug"]
+            dismissed = [s for s in signals if s["signal_type"] == "dismiss"]
+            
+            # Create pairs where we have both a confirmation and a dismissal in the same session
+            # to contrast correct vs incorrect bug flags.
+            for conf in confirmed:
+                for dis in dismissed:
+                    pairs.append({
+                        "prompt": prompt,
+                        "chosen": session["ai_result"]["comments"][conf["bug_index"]],
+                        "rejected": session["ai_result"]["comments"][dis["bug_index"]]
+                    })
+        return pairs
+
     # ── Library Stats ────────────────────────────────────────
 
     def get_library_stats(self) -> Dict[str, Any]:

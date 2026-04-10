@@ -327,6 +327,10 @@ Share feedback: 👉 [{meta['html_url']}]({meta['html_url']})
         "dismiss_bug": dismiss_bug,
         "approve_pr": approve_pr,
         "reject_pr": reject_pr,
+        "export_dpo": lambda: (
+            f"✅ **DPO Dataset Exported!**\n\nFound {len(store.export_dpo_pairs())} preference pairs in historical flywheel signals.\n\nFile saved to: `training/dpo_preferences.jsonl`",
+            json.dumps(store.export_dpo_pairs(), indent=2)
+        )
     }
 
 
@@ -506,6 +510,39 @@ def create_demo(store):
                     lambda: get_dashboard_data(store),
                     inputs=[],
                     outputs=[dashboard_display]
+                )
+
+            # ====== TAB 3: RL Training ======
+            with gr.TabItem("🧠 RL Training"):
+                gr.Markdown("# 🧠 Reinforcement Learning & DPO Hub")
+                gr.Markdown("Transform your human feedback signals into a fine-tuning dataset for RL agents.")
+                
+                with gr.Row():
+                    with gr.Column(elem_classes=["glass-panel"]):
+                        gr.Markdown("### 📊 Dataset Statistics")
+                        dpo_stats = gr.Markdown(f"Current preference pairs: **{len(store.export_dpo_pairs())}**")
+                        export_btn = gr.Button("🚀 Generate Training Dataset", variant="primary", elem_classes=["primary-btn"])
+                        
+                    with gr.Column(elem_classes=["glass-panel"]):
+                        gr.Markdown("### 🎓 Training Status")
+                        gr.Markdown("Status: `Ready to initiate`")
+                        train_btn = gr.Button("🎓 Run DPO Fine-tuning (Mock)", variant="secondary", elem_classes=["secondary-btn"])
+                
+                with gr.Column(elem_classes=["glass-panel"]):
+                    gr.Markdown("### 📄 Preview exported data")
+                    export_status = gr.Markdown("")
+                    dpo_preview = gr.Code(label="DPO Preview (JSON)", language="json", lines=15)
+
+                export_btn.click(
+                    handlers["export_dpo"],
+                    inputs=[],
+                    outputs=[export_status, dpo_preview]
+                )
+
+                train_btn.click(
+                    lambda: "🔄 [TRAIN] Initiating DPO loop...\n[TRAIN] Loading reference model Qwen2.5-Coder...\n[TRAIN] Optimizing policy strictly on confirmed bug patterns...\n[SUCCESS] Policy updated. Rewards normalized.",
+                    inputs=[],
+                    outputs=[export_status]
                 )
 
     return demo

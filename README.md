@@ -14,14 +14,14 @@ tags:
 
 # 🛡️ ShieldX: The Autonomous Data Privacy Officer (DPO)
 
-ShieldX is a real-world Reinforcement Learning (RL) environment designed for **Autonomous Data Privacy Governance**. It provides a high-fidelity simulation of an AI agent managing GDPR, CCPA, and regional compliance across complex corporate data flows.
+ShieldX is a real-world Reinforcement Learning (RL) environment designed for **Autonomous Data Privacy Governance**. It provides a high-fidelity simulation of an AI agent managing privacy compliance across complex data flows, standardized for the **Asia-South-1 (India)** region.
 
 ---
 
 ## 📐 Environment Design & MDP
 
 ShieldX models the complexity of privacy engineering as a standard Markov Decision Process (MDP):
-- **Observation Space**: Multi-region database fragments, server logs, and active policy contexts.
+- **Observation Space**: Indian region database fragments, system logs, and DPDP Act policy contexts.
 - **Action Space**: Privacy-preserving operations (`redact`, `delete`, `export`, `retain`, `notify`).
 - **Reward Function**: Dense signals mapped to strict (0, 1) bounds for optimal RL stability.
 
@@ -35,13 +35,13 @@ To ensure compatibility with all automated evaluators, ShieldX enforces **Strict
 
 ## 🎯 Task Library (ShieldX-Benchmark)
 
-| Task ID | Name | Difficulty | Goal |
-|:---|:---|:---|:---|
-| `task-001` | **PII Scrubber** | Easy | Redact Names, Emails, SSNs, and IPs from support tickets. |
-| `task-002` | **DSAR Export** | Medium | Fulfill a Subject Access Request without revealing third-party PII. |
-| `task-003` | **Selective Erasure** | Medium | Process 'Right to Erasure' while retaining billing for tax laws. |
-| `task-004` | **Border Audit** | Hard | Inspect EU -> US data transfers for valid SCC signatures. |
-| `task-005` | **Breach Report** | Hard | Analyze exfiltration logs to identify all affected User IDs. |
+| Task ID | Name | Difficulty | Region | Goal |
+|:---|:---|:---|:---|:---|
+| `task-001` | **PII Scrubber** | Easy | India | Redact Names, Emails, SSNs, and IPs from support tickets. |
+| `task-002` | **DSAR Export** | Medium | India | Fulfill a Subject Access Request without revealing third-party PII. |
+| `task-003` | **Selective Erasure** | Medium | India | Process 'Right to Erasure' while retaining billing for auditing. |
+| `task-004` | **Border Audit** | Hard | India | Inspect international data transfers for valid SCC signatures. |
+| `task-005` | **Breach Report** | Hard | India | Analyze exfiltration logs to identify all affected User IDs. |
 
 ---
 
@@ -49,7 +49,7 @@ To ensure compatibility with all automated evaluators, ShieldX enforces **Strict
 
 - **RL Engine**: Python-based Gymnasium core with stateful validation and logic-based grading.
 - **API Surface**: Full FastAPI implementation of the OpenEnv spec (`/reset`, `/step`, `/state`).
-- **Premium Dashboard**: A custom **Glassmorphism SPA** built with Vanilla HTML/CSS/JS for high-performance audit visualization.
+- **Cyber-DPO HUD**: A custom **Neon-Glassmorphism Dashboard** built with Vanilla HTML/CSS/JS, featuring CRT scanlines and real-time telemetry.
 - **Logging Compliance**: Integrated `inference.py` script emitting mandatory `[START]`, `[STEP]`, and `[END]` logging tags.
 
 ---
@@ -80,4 +80,4 @@ ShieldX is 100% compliant with the OpenEnv Hackathon requirements. All logs gene
 - `MODEL_NAME`: Default is `Qwen/Qwen2.5-Coder-32B-Instruct`.
 
 ---
-*ShieldX is a production-ready RL environment optimized for the OpenEnv Hackathon Challenge.*
+*ShieldX is a production-ready RL environment localized for the India Data Privacy landscape.*

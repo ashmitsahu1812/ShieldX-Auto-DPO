@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskId = taskSelect.value;
         currentScore = 0.01; // Reset to strict bound start
         try {
-            const response = await fetch(`/reset?task_id=${taskId}`, { method: 'POST' });
+            const response = await fetch(`./reset?task_id=${taskId}`, { method: 'POST' });
             const data = await response.json();
             updateState(data);
             auditHistory.innerHTML = '';
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchState() {
         try {
-            const response = await fetch('/state');
+            const response = await fetch('./state');
             const data = await response.json();
             updateState(data);
         } catch (err) {
@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function executeAction() {
         const operation = document.querySelector('input[name="operation"]:checked').value;
         const target = actionTarget.value;
+        const reasoning = document.getElementById('action-reasoning').value || "Manual audit action";
 
         if (!target) {
             showStatus('Target field is required', 'error');
@@ -73,10 +74,15 @@ document.addEventListener('DOMContentLoaded', () => {
         executeBtn.innerText = 'EXECUTING...';
 
         try {
-            const response = await fetch('/step', {
+            const response = await fetch('./step', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ operation, target })
+                body: JSON.stringify({ 
+                    operation, 
+                    target, 
+                    reasoning,
+                    legal_basis: "Compliance Protocol Alpha" 
+                })
             });
             const result = await response.json();
             

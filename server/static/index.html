@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShieldX | Autonomous DPO Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="./static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -93,6 +93,10 @@
                             <label>Target</label>
                             <input type="text" id="action-target" placeholder="Field, Value, or ID">
                         </div>
+                        <div class="control-group">
+                            <label>Reasoning</label>
+                            <input type="text" id="action-reasoning" placeholder="Legal basis or logic...">
+                        </div>
                         <button id="execute-btn" class="primary-btn">EXECUTE ACTION</button>
                         
                         <div class="task-switcher">
@@ -112,6 +116,6 @@
         </section>
     </main>
 
-    <script src="/static/main.js"></script>
+    <script src="./static/main.js"></script>
 </body>
 </html>

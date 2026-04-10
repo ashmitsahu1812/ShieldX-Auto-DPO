@@ -8,9 +8,9 @@ class PrivacyAction(BaseModel):
     )
     target: str = Field(..., description="The field name, record ID, or user ID to operate on.")
     legal_basis: Optional[str] = Field(
-        None, description="The legal justification (e.g., 'GDPR Art. 6', 'Financial retention law')."
+        "", description="The legal justification (e.g., 'GDPR Art. 6', 'Financial retention law')."
     )
-    reasoning: str = Field(..., description="Brief thought process for the action.")
+    reasoning: Optional[str] = Field("", description="Brief thought process for the action.")
 
 class PrivacyObservation(BaseModel):
     """Observation model for the DPO Agent."""

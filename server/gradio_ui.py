@@ -12,6 +12,44 @@ import uuid
 import os
 from openai import OpenAI
 
+CUSTOM_CSS = """
+body {
+    background: linear-gradient(135deg, #0f172a, #1e1b4b, #000000);
+    color: #e2e8f0;
+}
+.gradio-container {
+    background: transparent !important;
+}
+.glass-panel {
+    background: rgba(30, 41, 59, 0.6) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5) !important;
+    padding: 24px !important;
+}
+.primary-btn {
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6) !important;
+    border: none !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+.primary-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6) !important;
+}
+.secondary-btn {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: background 0.2s ease !important;
+}
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+"""
+
 
 # ============================================================
 # 🔄 TAB 1: FLYWHEEL REVIEW (Merged Live PR + Confidence)
@@ -147,6 +185,12 @@ def create_flywheel_review_handlers(store):
             comments_display += f"### {icon} Finding #{i+1} — `{comment['file']}`\n"
             comments_display += f"**Severity:** {severity.upper()} • {conf_badge} ({src_label})\n\n"
             comments_display += f"{comment['comment']}\n\n"
+            
+            # Print Auto-Fix Suggested Patch if present
+            suggested_patch = comment.get("suggested_patch")
+            if suggested_patch:
+                comments_display += f"**✨ Auto-Fix Patch:**\n```diff\n{suggested_patch}\n```\n\n"
+            
             comments_display += f"*Pattern: `{comment.get('pattern_keyword', 'unknown')}`*\n\n---\n\n"
 
         # Verdict
@@ -309,10 +353,11 @@ def create_demo(store):
 
     handlers = create_flywheel_review_handlers(store)
 
-    with gr.Blocks(theme=gr.themes.Soft(), title="ScalarX Meta — Self-Learning Flywheel") as demo:
+    with gr.Blocks(theme=gr.themes.Glass(), css=CUSTOM_CSS, title="ScalarX Meta — Self-Learning Flywheel") as demo:
 
-        gr.Markdown("# 🔄 ScalarX Meta — Self-Learning Flywheel")
-        gr.Markdown("*The more you review, the smarter it gets.*")
+        with gr.Column(elem_classes=["glass-panel"]):
+            gr.Markdown("# 🔄 ScalarX Meta — Self-Learning Flywheel")
+            gr.Markdown("*The more you review, the smarter it gets.*")
 
         with gr.Tabs():
 
@@ -327,7 +372,7 @@ def create_demo(store):
                         placeholder="https://github.com/owner/repo/pull/1",
                         scale=4
                     )
-                    fetch_btn = gr.Button("📥 Fetch & Benchmark", variant="primary", scale=1)
+                    fetch_btn = gr.Button("📥 Fetch & Benchmark", variant="primary", scale=1, elem_classes=["primary-btn"])
 
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -342,25 +387,25 @@ def create_demo(store):
                         # Confirm / Dismiss individual findings
                         gr.Markdown("### 🔬 Per-Finding Feedback")
                         gr.Markdown("Enter the finding number (starting from 0) to confirm or dismiss:")
-                        with gr.Row():
+                        with gr.Row(elem_classes=["glass-panel"]):
                             bug_index_input = gr.Number(label="Finding #", value=0, precision=0, scale=1)
                         with gr.Row():
-                            confirm_btn = gr.Button("✅ Confirm Bug", variant="primary", scale=1)
-                            dismiss_btn = gr.Button("❌ Not a Bug", variant="stop", scale=1)
+                            confirm_btn = gr.Button("✅ Confirm Bug", variant="primary", scale=1, elem_classes=["primary-btn"])
+                            dismiss_btn = gr.Button("❌ Not a Bug", variant="stop", scale=1, elem_classes=["secondary-btn"])
                         signal_output = gr.Markdown("")
 
                         gr.Markdown("---")
                         gr.Markdown("### 🧑‍💻 Final Decision")
                         with gr.Row():
-                            approve_btn = gr.Button("✅ Approve PR", variant="primary")
-                            reject_btn = gr.Button("❌ Reject PR", variant="stop")
+                            approve_btn = gr.Button("✅ Approve PR", variant="primary", elem_classes=["primary-btn"])
+                            reject_btn = gr.Button("❌ Reject PR", variant="stop", elem_classes=["secondary-btn"])
                         user_decision_output = gr.Markdown("")
 
-                    with gr.Column(scale=2):
+                    with gr.Column(scale=2, elem_classes=["glass-panel"]):
                         with gr.Tabs():
                             with gr.TabItem("📄 Code Changes"):
                                 live_diff_view = gr.Markdown("Diff appears here after fetching.")
-                            with gr.TabItem("🤖 AI Analysis"):
+                            with gr.TabItem("🤖 AI Analysis & Auto-Fixes"):
                                 ai_comments_output = gr.Markdown("Click **Run AI Review** after fetching.")
                                 ai_verdict_output = gr.Markdown("")
 

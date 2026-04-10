@@ -21,6 +21,10 @@ load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-32B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
+
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+
 API_URL = os.getenv("API_URL", "http://127.0.0.1:7860")
 
 # Tiered Provider Configuration
@@ -71,7 +75,7 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{reward:.2f}" for reward in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 
 def _is_local_api(url: str) -> bool:
@@ -509,7 +513,7 @@ async def run_baseline_task(
 
 async def main() -> None:
     server_process: Optional[subprocess.Popen] = None
-    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if HF_TOKEN else None
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
     tasks = [
         ("syntax_review", 0),
         ("bug_detection", 0),
@@ -525,7 +529,7 @@ async def main() -> None:
                 total_score += await run_baseline_task(client, env_client, task_type, task_index)
 
         average_score = total_score / len(tasks) if tasks else 0.0
-        print(f"\n[SUMMARY] Avg Score: {average_score:.3f}", flush=True)
+        print(f"\n[SUMMARY] Avg Score: {average_score:.3f}", flush=True, file=sys.stderr)
     finally:
         if server_process is not None:
             server_process.terminate()

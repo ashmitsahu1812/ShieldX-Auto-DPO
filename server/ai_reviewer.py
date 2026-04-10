@@ -86,7 +86,8 @@ Output ONLY this JSON structure:
     {{
       "file": "filename",
       "severity": "error" | "warning" | "info",
-      "comment": "Detailed explanation of the issue (minimum 10 words)."
+      "comment": "Detailed explanation of the issue (minimum 10 words).",
+      "suggested_patch": "Only if fixable: a short unified diff patch fixing the issue for this file, else null"
     }}
   ],
   "overall_verdict": "approve" | "request_changes",

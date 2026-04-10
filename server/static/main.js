@@ -11,11 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionTarget = document.getElementById('action-target');
     const envInstruction = document.getElementById('env-instruction');
 
-    let currentScore = 0.0;
+    let currentScore = 0.01;
     let stepCount = 0;
 
     async function initializeEnvironment() {
         const taskId = taskSelect.value;
+        currentScore = 0.01; // Reset to strict bound start
         try {
             const response = await fetch(`/reset?task_id=${taskId}`, { method: 'POST' });
             const data = await response.json();
@@ -46,9 +47,15 @@ document.addEventListener('DOMContentLoaded', () => {
         policyContext.innerText = state.policy_context || 'No policy context active.';
         
         // Update Stats
-        scoreDisplay.innerText = `Score: ${currentScore.toFixed(2)}`;
-        stepCount = state.step || 0;
-        stepCounter.innerText = `Step: ${stepCount}/5`;
+        scoreDisplay.innerText = `Score: ${parseFloat(currentScore).toFixed(2)}`;
+        stepCount = state.step_count || 0;
+        stepCounter.innerText = `Step: ${stepCount}/${state.max_steps || 5}`;
+        
+        // Update Dynamic Region
+        const regionTag = document.getElementById('region-tag');
+        if (regionTag && state.region) {
+            regionTag.innerText = `Node: ${state.region.toUpperCase()}`;
+        }
         
         document.getElementById('task-badge').innerText = state.task_id || 'ShieldX';
     }
@@ -73,16 +80,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             
-            currentScore += result.reward;
+            const rewardValue = parseFloat(result.reward || 0);
+            currentScore += rewardValue;
             updateState(result.observation);
             
-            addHistoryItem(operation, target, result.reward, result.info?.message);
+            addHistoryItem(operation, target, rewardValue, result.info?.message);
             
             if (result.done) {
-                showStatus(`Audit Session Complete! Final Score: ${currentScore.toFixed(2)}`, 'success');
+                showStatus(`Audit Session Complete! Final Score: ${parseFloat(currentScore).toFixed(2)}`, 'success');
                 envInstruction.innerText = "Session terminated. Please reset to start a new audit.";
             } else {
-                showStatus(`Action Success (+${result.reward.toFixed(2)})`, 'success');
+                showStatus(`Action Success (+${rewardValue.toFixed(2)})`, 'success');
             }
 
         } catch (err) {

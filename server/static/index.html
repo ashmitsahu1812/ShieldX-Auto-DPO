@@ -26,73 +26,79 @@
         </header>
 
         <section class="grid-layout">
-            <!-- Left Panel: Monitor -->
-            <div class="panel monitor-panel glass">
-                <div class="panel-header">
-                    <h2>🔍 Live Data Monitor</h2>
-                    <div id="task-badge" class="task-badge">Task 001</div>
+            <!-- Left Side: Activity -->
+            <div class="main-content">
+                <!-- Monitor -->
+                <div class="panel monitor-panel glass">
+                    <div class="panel-header">
+                        <h2>🔍 Live Data Monitor</h2>
+                        <div id="task-badge" class="task-badge">Task 001</div>
+                    </div>
+                    <div class="data-viewport" id="data-buffer">
+                        <div class="loading-spinner"></div>
+                    </div>
+                    <div class="panel-footer">
+                        <p id="env-instruction">Initializing ShieldX environment...</p>
+                    </div>
                 </div>
-                <div class="data-viewport" id="data-buffer">
-                    <div class="loading-spinner"></div>
-                </div>
-                <div class="panel-footer">
-                    <p id="env-instruction">Initializing ShieldX environment...</p>
+
+                <!-- History -->
+                <div class="panel history-panel glass">
+                    <div class="panel-header">
+                        <h2>📜 Audit Trace</h2>
+                    </div>
+                    <div class="history-list" id="audit-history">
+                        <!-- Action logs load here -->
+                    </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Intelligence -->
-            <div class="panel intel-panel glass">
-                <div class="panel-header">
-                    <h2>⚖️ Policy & Regulation</h2>
+            <!-- Right Side: Controls & Intel -->
+            <div class="sidebar">
+                <!-- Intelligence -->
+                <div class="panel intel-panel glass">
+                    <div class="panel-header">
+                        <h2>⚖️ Policy & Regulation</h2>
+                    </div>
+                    <div class="policy-viewport" id="policy-context">
+                        <!-- Policies load here -->
+                    </div>
                 </div>
-                <div class="policy-viewport" id="policy-context">
-                    <!-- Policies load here -->
-                </div>
-            </div>
 
-            <!-- Bottom Left: History -->
-            <div class="panel history-panel glass">
-                <div class="panel-header">
-                    <h2>📜 Audit Trace</h2>
-                </div>
-                <div class="history-list" id="audit-history">
-                    <!-- Action logs load here -->
-                </div>
-            </div>
-
-            <!-- Bottom Right: Action Console -->
-            <div class="panel console-panel glass">
-                <div class="panel-header">
-                    <h2>⚙️ Compliance Console</h2>
-                </div>
-                <div class="console-controls">
-                    <div class="control-group">
-                        <label>Operation</label>
-                        <div class="radio-buttons">
-                            <label><input type="radio" name="operation" value="redact" checked> Redact</label>
-                            <label><input type="radio" name="operation" value="delete"> Delete</label>
-                            <label><input type="radio" name="operation" value="export"> Export</label>
-                            <label><input type="radio" name="operation" value="retain"> Retain</label>
+                <!-- Action Console -->
+                <div class="panel console-panel glass">
+                    <div class="panel-header">
+                        <h2>⚙️ Compliance Console</h2>
+                    </div>
+                    <div class="console-controls">
+                        <div class="control-group">
+                            <label>Operation</label>
+                            <div class="radio-buttons">
+                                <label><input type="radio" name="operation" value="redact" checked> Redact</label>
+                                <label><input type="radio" name="operation" value="delete"> Delete</label>
+                                <label><input type="radio" name="operation" value="export"> Export</label>
+                                <label><input type="radio" name="operation" value="retain"> Retain</label>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label>Target</label>
+                            <input type="text" id="action-target" placeholder="Field, Value, or ID">
+                        </div>
+                        <button id="execute-btn" class="primary-btn">EXECUTE ACTION</button>
+                        
+                        <div class="task-switcher">
+                            <select id="task-select">
+                                <option value="task-001-pii-scrubber">Task 001: PII Scrubber</option>
+                                <option value="task-002-dsar-export">Task 002: DSAR Export</option>
+                                <option value="task-003-selective-erasure">Task 003: Selective Erasure</option>
+                                <option value="task-004-cross-border-audit">Task 004: Border Audit</option>
+                                <option value="task-005-breach-reporting">Task 005: Breach Report</option>
+                            </select>
+                            <button id="reset-btn" class="secondary-btn">INITIALIZE AUDIT</button>
                         </div>
                     </div>
-                    <div class="control-group">
-                        <label>Target</label>
-                        <input type="text" id="action-target" placeholder="Field, Value, or ID">
-                    </div>
-                    <button id="execute-btn" class="primary-btn">EXECUTE ACTION</button>
-                    
-                    <div class="task-switcher">
-                        <select id="task-select">
-                            <option value="task-001-pii-scrubber">Task 001: PII Scrubber</option>
-                            <option value="task-002-dsar-export">Task 002: DSAR Export</option>
-                            <option value="task-003-selective-erasure">Task 003: Selective Erasure</option>
-                            <option value="task-004-cross-border-audit">Task 004: Border Audit</option>
-                            <option value="task-005-breach-reporting">Task 005: Breach Report</option>
-                        </select>
-                        <button id="reset-btn" class="secondary-btn">INITIALIZE AUDIT</button>
-                    </div>
+                    <div id="action-status" class="action-alert hidden"></div>
                 </div>
-                <div id="action-status" class="action-alert hidden"></div>
             </div>
         </section>
     </main>

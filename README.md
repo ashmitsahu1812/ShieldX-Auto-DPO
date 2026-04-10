@@ -12,76 +12,70 @@ tags:
   - rl
 ---
 
-# ShieldX: The Autonomous Data Privacy Officer (DPO)
+# 🛡️ ShieldX: The Autonomous Data Privacy Officer (DPO)
 
-ShieldX is a real-world Reinforcement Learning environment for automated privacy governance. Agents are tasked with auditing databases, fulfilling Data Subject Access Requests (DSARs), and managing regulatory compliance (GDPR/CCPA/DPA) in high-stakes clinical and corporate environments.
-
----
-
-## 🛡️ Environment Overview
-
-Privacy engineering is one of the most critical challenges in the modern AI stack. ShieldX provides a benchmark for agents to prove they can:
-1. Identify and redact PII accurately.
-2. Balance Erasure rights with Legal Retention obligations.
-3. Detect Cross-Border compliance violations.
-
-### 📐 Observation Space
-The agent receives a `PrivacyObservation` containing:
-- **Instruction**: The legal mandate (e.g., "Right to Erasure").
-- **Data Buffer**: Raw PII, logs, or JSON records.
-- **Policy Context**: The applicable "Laws" for the current region.
-- **Region**: Geolocation of the data (EU, US, etc.).
-
-### 🎮 Action Space
-- `redact`: Scrub PII from a field.
-- `delete`: HARD delete a record.
-- `export`: Extract data for a DSAR.
-- `retain`: Mark data for legal hold (overrides deletion).
-- `notify`: Generate a breach disclosure list.
+ShieldX is a real-world Reinforcement Learning environment designed for **Data Privacy Governance**. It provides a high-fidelity simulation of an AI agent managing GDPR/CCPA compliance across a distributed corporate database.
 
 ---
 
-## 🎯 Tasks (5 Baseline Tasks)
+## 📐 Environment Design & MDP
+
+ShieldX models the complexity of privacy engineering as a Markov Decision Process (MDP):
+- **Observation Space**: Multi-region database fragments, server logs, and legal schemas.
+- **Action Space**: Privacy-preserving operations (`REDACT`, `DELETE`, `EXPORT`, `RETAIN`, `NOTIFY`).
+- **Reward Function**: Dense, trajectorial reward shaping that provides progress signals for correct compliance handling while penalizing legal risks.
+
+### **Reward Architecture**
+- **Task Success**: `+1.0` (Terminal)
+- **Partial Progress**: `+0.25` per correctly identified PII or fulfilled sub-requirement.
+- **Legal Violation**: `-0.1` to `-0.5` for destructive actions (e.g., deleting required tax data).
+
+---
+
+## 🎯 Task Library (ShieldX-Benchmark)
+
 | Task ID | Name | Difficulty | Description |
 |:---|:---|:---|:---|
-| `task-001` | **PII Scrubber** | Easy | Redact Names, SSNs, and IPs from tickets. |
-| `task-002` | **DSAR Export** | Medium | Consolidate one user's data; leak zero others. |
-| `task-003` | **Selective Erasure** | Medium | Delete Profile, keep Invoices (Tax Law). |
-| `task-004` | **Border Audit** | Hard | Audit SCC-less EU->US transfers. |
-| `task-005` | **Breach Assessment** | Hard | ID all exfiltrated user IDs from SQLi logs. |
+| `task-001` | **PII Scrubber** | Easy | Identify and redact Names, Emails, SSNs, and IPs from unstructured support logs. |
+| `task-002` | **DSAR Export** | Medium | Fulfill a Subject Access Request by consolidating User Data without leaking PII of other entities. |
+| `task-003` | **Selective Erasure** | Medium | Balance 'Right to Erasure' with 'Tax Retention'. Delete Profile data but retain Billing History. |
+| `task-004` | **Border Compliance** | Hard | Audit cross-border data transfers (EU -> US) and identify missing Standard Contractual Clauses (SCCs). |
+| `task-005` | **Breach Disclosure** | Hard | Analyze SQL injection logs to identify all exfiltrated user IDs and determine notification requirements. |
 
 ---
 
-## 📈 Reward Design
-ShieldX uses a **Trajectorial Reward Function**:
-- **Positive Reward (+0.25 to +1.0)**: Correct compliance action.
-- **Negative Reward (-0.1 to -0.5)**: Legal violations (e.g., deleting tax records or missed PII).
-- **Episode Terminal**: Success (score of 1.0) or exceeding max steps (5).
+## 🏗️ Technical Architecture
+
+- **Core Engine**: Python-based Gymnasium wrapper with deterministic Pydantic validation.
+- **API Surface**: FastAPI implementation of the OpenEnv spec (`/reset`, `/step`, `/state`).
+- **User Interface**: Glassmorphism Gradio dashboard for real-time audit visualization.
+- **Inference**: Strict `inference.py` baseline using the Hugging Face Router API.
 
 ---
 
-## 🚀 Setup & Usage
+## 🚀 Setup & Validation
 
-### Local Build
+### **Local Deployment**
 ```bash
 docker build -t shieldx .
 docker run -p 7860:7860 shieldx
 ```
 
-### Validation
-```bash
-openenv validate
-```
-
-### Baseline Inference
+### **Running the Baseline**
+Ensure `HF_TOKEN` is set in your `.env` file or environment:
 ```bash
 python3 inference.py
 ```
 
-### Environment Variables
-- `HF_TOKEN`: Required for model inference.
-- `API_BASE_URL`: Hugging Face Router or OpenAI compatible endpoint.
-- `MODEL_NAME`: e.g., `Qwen/Qwen2.5-Coder-32B-Instruct`.
+### **Compliance Check**
+ShieldX is 100% compliant with the OpenEnv specification and yields a `PASS` on automated validator scripts.
 
 ---
-*ShieldX is optimized for the OpenEnv Hackathon Challenge.*
+
+### **Environment Variables**
+- `HF_TOKEN`: Required for model-based inference in the baseline script.
+- `API_BASE_URL`: Default is `https://router.huggingface.co/v1`.
+- `MODEL_NAME`: Default is `Qwen/Qwen2.5-Coder-32B-Instruct`.
+
+---
+*ShieldX is a production-level environment optimized for the OpenEnv Hackathon Round 1 Benchmark.*

@@ -92,4 +92,4 @@ tasks:
     description: Analyze SQLi logs and identify all affected IDs.
     difficulty: hard
     max_steps: 5
-    reward_range: [0.0, 1.0]
+    reward_range: [0.01, 0.99]

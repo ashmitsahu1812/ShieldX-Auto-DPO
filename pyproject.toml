@@ -19,6 +19,7 @@ dependencies = [
     "httpx",
     "python-dotenv",
     "gymnasium",
+    "numpy",
     "jinja2",
     "python-multipart",
     "openenv-core"
@@ -34,7 +35,7 @@ server = "server.app:main"
 server = "server.app:main"
 
 [tool.setuptools]
-packages = ["server"]
+packages = ["server", "rl"]
 
 [tool.setuptools.package-data]
 "*" = ["static/*", "static/**/*"]

@@ -131,15 +131,6 @@ def reset(
         "observation": observation,
         "reward": initial,
         "done": False,
-        # Compatibility fields for validator pipelines that read task score directly.
-        "score": initial,
-        "task_score": initial,
-        "info": {
-            "score": initial,
-            "task_score": initial,
-            "cumulative_reward": initial,
-            "explanation": "Environment reset.",
-        },
     }
 
 @app.get("/state")
@@ -181,8 +172,24 @@ def grade(task_id: str = ""):
 
 @app.get("/grader")
 def grader(task_id: str = ""):
-    # Alias for compatibility with validators using /grader naming.
-    return grade(task_id=task_id)
+    # Compatibility endpoint:
+    # - with task_id => single-task score
+    # - without task_id => deterministic score for all tasks
+    if task_id:
+        return grade(task_id=task_id)
+
+    scores = []
+    for task in ShieldXEnv.TASKS:
+        tid = str(task.get("id", ""))
+        env = ShieldXEnv(task_id=tid)
+        env.reset(task_id=tid)
+        score = float(env._strict_unit_clamp(env.evaluate_task()))
+        scores.append({"task_id": tid, "score": score})
+
+    return {
+        "scores": scores,
+        "all_in_range": all(0.0 < float(s["score"]) < 1.0 for s in scores),
+    }
 
 @app.post("/step")
 def step(action: Dict[str, Any] = Body(default_factory=dict)):
@@ -199,10 +206,6 @@ def step(action: Dict[str, Any] = Body(default_factory=dict)):
         "observation": observation,
         "reward": reward,
         "done": done,
-        "score": float((info or {}).get("score", reward)),
-        "task_score": float((info or {}).get("task_score", (info or {}).get("score", reward)),
-        ),
-        "info": info or {},
     }
 
 @app.websocket("/ws")
@@ -239,9 +242,6 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": True,
-                        "score": initial,
-                        "task_score": initial,
-                        "info": observation.get("metadata", {}),
                     },
                 }))
                 continue
@@ -268,9 +268,6 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": False,
-                        "score": initial,
-                        "task_score": initial,
-                        "info": observation.get("metadata", {}),
                     }
                     await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
 
@@ -285,9 +282,6 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": float(reward),
                         "done": bool(done),
-                        "score": float((info or {}).get("score", reward)),
-                        "task_score": float((info or {}).get("task_score", (info or {}).get("score", reward))),
-                        "info": info or {},
                     }
                     await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
 
@@ -328,9 +322,6 @@ async def ws(websocket: WebSocket):
                             "observation": observation,
                             "reward": initial,
                             "done": True,
-                            "score": initial,
-                            "task_score": initial,
-                            "info": observation.get("metadata", {}),
                         },
                     }))
             except Exception as exc:
@@ -350,9 +341,6 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": True,
-                        "score": initial,
-                        "task_score": initial,
-                        "info": observation.get("metadata", {}),
                     },
                 }))
     except WebSocketDisconnect:

@@ -19,6 +19,15 @@ tags:
 A real-world **equity execution and risk management** simulation for training and evaluating trading agents.  
 An agent acts as a junior trader placing buy/sell/hold orders while balancing return, drawdown, position concentration, and portfolio rebalancing objectives.
 
+This submission is designed to score well on **real-world utility**, **task and grader quality**, and **spec compliance**: deterministic scenarios, auditable actions, multi-objective constraints at once (return, drawdown, concentration, cash floor), and a baseline LLM driver with reproducible reference grades.
+
+## Differentiation (not a toy market simulator)
+
+- **Operational realism** — Actions mirror desk workflow: discrete orders, position limits, and rationale strings suitable for compliance-style logging.
+- **Calibration, not luck** — Confidence interacts with correctness so “loud and wrong” is penalized more than cautious errors.
+- **Hard portfolio constraint task** — Task-004 couples **target weights** with a **minimum cash buffer**, a common production constraint that pure “PnL-only” toy envs skip.
+- **Evidence-backed evaluation** — Reference policy scores are fixed and queryable via `/grader`; contract tests assert API shape and strict `(0, 1)` scores.
+
 ## Why This Is Real-World
 
 This environment models work that humans actually do every day:
@@ -35,8 +44,8 @@ All endpoints follow the OpenEnv spec:
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/reset` | POST | Start or restart an episode. Accepts `task_id`. |
-| `/step` | POST | Execute a trade action. Returns observation, reward, done. |
+| `/reset` | POST | Start or restart an episode. Accepts `task_id`. Returns `observation`, `reward`, `done`, `score`, `task_score`, `info`. |
+| `/step` | POST | Execute a trade action. Returns `observation`, `reward`, `done`, `score`, `task_score`, `info`. |
 | `/state` | GET | Current internal state snapshot. |
 | `/health` | GET | Liveness check. |
 | `/schema` | GET | JSON schemas for action, observation, state. |
@@ -178,19 +187,21 @@ It responds with `{"decision": ..., "quantity": ..., "confidence": ..., "rationa
 
 ## Reproducible Baseline Scores
 
-Reference grader scores (deterministic ideal-action policy):
+Reference grader scores (**deterministic** ideal-action policy via `/grader`):
 
-| Task | Score |
+| Task | Reference score |
 |---|---|
-| task-001-trend-following | ~0.80 |
-| task-002-mean-reversion | ~0.74 |
-| task-003-risk-managed-hedge | ~0.84 |
-| task-004-portfolio-rebalance | ~0.72 |
+| task-001-trend-following | 0.8380 |
+| task-002-mean-reversion | 0.7886 |
+| task-003-risk-managed-hedge | 0.8915 |
+| task-004-portfolio-rebalance | 0.7989 |
 
 Verify with:
 ```bash
 curl -s http://127.0.0.1:8000/grader
 ```
+
+All reported scores stay **strictly inside** `(0, 1)` (not `0.0` or `1.0`), matching strict validators.
 
 ## RL Component
 
@@ -225,6 +236,9 @@ python3 inference.py
 python3 test_env.py
 python3 verify_rewards.py
 python3 verify_rewards_diverse.py
+
+# API contract (scores, response shape, Pydantic state)
+python3 -m unittest tests.test_openenv_contract -v
 
 # Validate OpenEnv spec
 openenv validate

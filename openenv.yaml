@@ -4,12 +4,12 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
-version: "2.0.0"
+version: "2.1.0"
 description: >
-  Real-world stock execution and risk-management simulation for training
-  trading agents with deterministic market scenarios. Agents act as junior
-  traders placing buy/sell/hold orders while balancing return, drawdown,
-  position concentration, and portfolio rebalancing objectives.
+  Real-world equity execution and risk-management simulation with auditable
+  actions, confidence-aware rewards, and four graded tasks (trend, mean reversion,
+  event risk, portfolio rebalancing). Deterministic prices and reproducible
+  reference scores via /grader.
 author: ashmitsahu
 tags:
   - openenv

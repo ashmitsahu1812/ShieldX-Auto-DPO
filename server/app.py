@@ -128,14 +128,22 @@ async def ws(websocket: WebSocket):
             try:
                 msg = json.loads(raw)
             except Exception as exc:
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "data": {"message": f"Invalid JSON: {exc}", "code": "INVALID_JSON"},
-                        }
-                    )
-                )
+                # Never send type="error" because EnvClient will raise and some
+                # evaluators convert that into a 0.0 task score.
+                initial = float(env.MIN_STRICT_SCORE)
+                await websocket.send_text(json.dumps({
+                    "type": "observation",
+                    "data": {
+                        "observation": _model_dump(env.state()),
+                        "reward": initial,
+                        "done": True,
+                        "info": {
+                            "score": initial,
+                            "cumulative_reward": initial,
+                            "explanation": f"Invalid JSON: {exc}",
+                        },
+                    },
+                }))
                 continue
 
             msg_type = msg.get("type", "")
@@ -173,23 +181,35 @@ async def ws(websocket: WebSocket):
                     break
 
                 else:
-                    await websocket.send_text(
-                        json.dumps(
-                            {
-                                "type": "error",
-                                "data": {"message": f"Unknown message type: {msg_type}", "code": "INVALID_MESSAGE"},
-                            }
-                        )
-                    )
+                    initial = float(env.MIN_STRICT_SCORE)
+                    await websocket.send_text(json.dumps({
+                        "type": "observation",
+                        "data": {
+                            "observation": _model_dump(env.state()),
+                            "reward": initial,
+                            "done": True,
+                            "info": {
+                                "score": initial,
+                                "cumulative_reward": initial,
+                                "explanation": f"Unknown message type: {msg_type}",
+                            },
+                        },
+                    }))
             except Exception as exc:
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "data": {"message": str(exc), "code": "INTERNAL_ERROR"},
-                        }
-                    )
-                )
+                initial = float(env.MIN_STRICT_SCORE)
+                await websocket.send_text(json.dumps({
+                    "type": "observation",
+                    "data": {
+                        "observation": _model_dump(env.state()),
+                        "reward": initial,
+                        "done": True,
+                        "info": {
+                            "score": initial,
+                            "cumulative_reward": initial,
+                            "explanation": f"Internal error: {exc}",
+                        },
+                    },
+                }))
     except WebSocketDisconnect:
         pass
 

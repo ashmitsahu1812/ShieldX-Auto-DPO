@@ -35,6 +35,8 @@ def metadata():
         "name": "shieldx_privacy_env",
         "description": "Autonomous Data Privacy Officer (DPO) Environment.",
         "version": "1.0.0",
+        # Useful for debugging deployments (HF Spaces often provides SPACE_REPO_SHA).
+        "build_sha": os.getenv("SPACE_REPO_SHA") or os.getenv("GITHUB_SHA") or "unknown",
         "tasks": [
             {"id": t["id"], "name": t.get("name", ""), "difficulty": t.get("difficulty", "")}
             for t in ShieldXEnv.TASKS

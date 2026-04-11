@@ -50,12 +50,22 @@ def _strict_score(x: object) -> float:
     # Keep inside strict bounds even if a downstream returns exactly 0.0/1.0.
     return max(STRICT_MIN, min(STRICT_MAX, v))
 
+
+def _tokenize_field(value: object) -> str:
+    """
+    Keep log fields single-token for strict parsers that split by spaces.
+    """
+    text = str(value).replace("\n", " ").replace("\r", " ").strip()
+    return "_".join(text.split())
+
 def log_start(task: str, env: str, model: str):
-    _safe_print(f"[START] task={task} env={env} model={model}")
+    _safe_print(
+        f"[START] task={_tokenize_field(task)} env={_tokenize_field(env)} model={_tokenize_field(model)}"
+    )
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str] = None):
-    safe_action = str(action).replace("\n", " ").replace("\r", " ")
-    safe_error = None if error is None else str(error).replace("\n", " ").replace("\r", " ")
+    safe_action = _tokenize_field(action)
+    safe_error = None if error is None else _tokenize_field(error)
     err_str = safe_error if safe_error else "null"
     done_str = "true" if done else "false"
     safe_reward = _strict_score(reward)
@@ -267,14 +277,21 @@ async def main():
         # No extra stdout allowed; tasks will still emit START/END.
         server_proc = None
     
-    # Run all 5 tasks sequentially
-    tasks = [
-        "task-001-pii-scrubber",
-        "task-002-dsar-export",
-        "task-003-selective-erasure",
-        "task-004-cross-border-audit",
-        "task-005-breach-reporting"
-    ]
+    # Allow evaluator-driven task selection while preserving local multi-task baseline runs.
+    task_name = os.getenv("TASK_NAME", "").strip()
+    task_names_env = os.getenv("TASK_NAMES", "").strip()
+    if task_name:
+        tasks = [task_name]
+    elif task_names_env:
+        tasks = [t.strip() for t in task_names_env.split(",") if t.strip()]
+    else:
+        tasks = [
+            "task-001-pii-scrubber",
+            "task-002-dsar-export",
+            "task-003-selective-erasure",
+            "task-004-cross-border-audit",
+            "task-005-breach-reporting",
+        ]
     
     for tid in tasks:
         await run_task(client, tid, env_url)

@@ -12,6 +12,9 @@ class ShieldXEnv:
     MIN_STRICT_SCORE = 0.01
     MAX_STRICT_SCORE = 0.99
     CORRECT_THRESHOLD = 0.5
+    # Conservative cap so even multi-task aggregation stays strictly below 1.0.
+    # With 5 steps and current shaping, each task ends in roughly [0.09, 0.19].
+    MAX_TASK_SCORE = 0.19
 
     def __init__(self, task_id: str = "task-001-pii-scrubber", max_steps: int = 5):
         self.task_id = task_id
@@ -100,21 +103,17 @@ class ShieldXEnv:
                 done=False,
             )
         
-        # TRIPLE-BUFFER MODEL:
-        # Base offset = 0.10 (added only to the first step's reward)
-        # Correct = 0.12, Mistake = 0.02
-        # Resulting Range for 5 steps:
-        # MIN (All mistakes): (0.10 + 0.02) + (4 * 0.02) = 0.20 ✅
-        # MAX (All correct): (0.10 + 0.12) + (4 * 0.12) = 0.70 ✅
-        
-        base_offset = 0.10 if self.step_count == 1 else 0.0
-        increment = 0.12 if reward_obj.value >= self.CORRECT_THRESHOLD else 0.02
+        # Dense strict-bounds shaping:
+        # first step gets a tiny bootstrap offset; subsequent steps encode progress.
+        # This keeps task scores informative while guaranteeing strict (0,1) margins.
+        base_offset = 0.03 if self.step_count == 1 else 0.0
+        increment = 0.03 if reward_obj.value >= self.CORRECT_THRESHOLD else 0.01
         
         step_reward = self._strict_unit_clamp(base_offset + increment)
         
-        # Absolute safety clamp for total cumulative
-        if self.total_reward + step_reward >= 0.95:
-            step_reward = self._strict_unit_clamp(0.95 - self.total_reward)
+        # Absolute safety clamp for total cumulative task score.
+        if self.total_reward + step_reward >= self.MAX_TASK_SCORE:
+            step_reward = self._strict_unit_clamp(self.MAX_TASK_SCORE - self.total_reward)
             
         self.total_reward = self._strict_unit_clamp(self.total_reward + step_reward)
         

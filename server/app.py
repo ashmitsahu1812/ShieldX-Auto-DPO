@@ -135,7 +135,15 @@ def reset(
 @app.get("/state")
 def state():
     env = get_session_env()
-    return env.state()
+    safe_score = float(env._strict_unit_clamp(env.total_reward))
+    return _attach_metadata(
+        env.state(),
+        {
+            "score": safe_score,
+            "cumulative_reward": safe_score,
+            "explanation": "Current environment state.",
+        },
+    )
 
 @app.post("/step")
 def step(action: Dict[str, Any] = Body(default_factory=dict)):
@@ -231,7 +239,16 @@ async def ws(websocket: WebSocket):
 
                 elif msg_type == "state":
                     state_obj = env.state()
-                    await websocket.send_text(json.dumps({"type": "state", "data": _model_dump(state_obj)}))
+                    safe_score = float(env._strict_unit_clamp(env.total_reward))
+                    state_payload = _attach_metadata(
+                        state_obj,
+                        {
+                            "score": safe_score,
+                            "cumulative_reward": safe_score,
+                            "explanation": "Current environment state.",
+                        },
+                    )
+                    await websocket.send_text(json.dumps({"type": "state", "data": state_payload}))
 
                 elif msg_type == "close":
                     break

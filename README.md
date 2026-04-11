@@ -27,9 +27,9 @@ ShieldX models the complexity of privacy engineering as a standard Markov Decisi
 
 ### **Reward & Scoring Logic**
 To ensure compatibility with all automated evaluators, ShieldX enforces **Strict (0, 1) Bounds**:
-- **Baseline Buffer**: All rewards and scores are clamped between **`0.01`** and **`0.99`**.
+- **Baseline Buffer**: All rewards and scores are clamped between **`0.11`** and **`0.89`**.
 - **Correct Compliance**: Significant positive step reward (e.g., `+0.25` for PII removal).
-- **Compliance Violations**: Penalties are mapped to the baseline `0.01` to maintain strict positivity.
+- **Compliance Violations**: Penalties are mapped to the baseline `0.11` to maintain strict positivity.
 
 ---
 

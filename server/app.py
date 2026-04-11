@@ -136,7 +136,7 @@ def reset(
 def state():
     env = get_session_env()
     safe_score = float(env._strict_unit_clamp(env.total_reward))
-    return _attach_metadata(
+    payload = _attach_metadata(
         env.state(),
         {
             "score": safe_score,
@@ -144,6 +144,10 @@ def state():
             "explanation": "Current environment state.",
         },
     )
+    # Compatibility: expose score fields at top-level for legacy parsers.
+    payload["score"] = safe_score
+    payload["cumulative_reward"] = safe_score
+    return payload
 
 @app.post("/step")
 def step(action: Dict[str, Any] = Body(default_factory=dict)):
@@ -248,6 +252,8 @@ async def ws(websocket: WebSocket):
                             "explanation": "Current environment state.",
                         },
                     )
+                    state_payload["score"] = safe_score
+                    state_payload["cumulative_reward"] = safe_score
                     await websocket.send_text(json.dumps({"type": "state", "data": state_payload}))
 
                 elif msg_type == "close":

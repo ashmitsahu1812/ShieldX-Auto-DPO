@@ -21,8 +21,8 @@ if HF_TOKEN is None:
 ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:8000")
 
 # Hackathon validator expects strict open interval (0,1) for scores.
-STRICT_MIN = 0.01
-STRICT_MAX = 0.99
+STRICT_MIN = 0.11
+STRICT_MAX = 0.89
 
 # --- LOGGING UTILS ---
 def _safe_print(line: str) -> None:

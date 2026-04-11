@@ -11,12 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionTarget = document.getElementById('action-target');
     const envInstruction = document.getElementById('env-instruction');
 
-    let currentScore = 0.01;
+    let currentScore = 0.11;
     let stepCount = 0;
 
     async function initializeEnvironment() {
         const taskId = taskSelect.value;
-        currentScore = 0.01; // Reset to strict bound start
+        currentScore = 0.11; // Reset to strict bound start
         try {
             const response = await fetch(`./reset?task_id=${taskId}`, { method: 'POST' });
             const data = await response.json();

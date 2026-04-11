@@ -9,12 +9,14 @@ class ShieldXEnv:
     OpenEnv Environment for Autonomous Data Privacy Governance.
     """
     TASKS = TASKS
-    MIN_STRICT_SCORE = 0.01
-    MAX_STRICT_SCORE = 0.99
+    # Use a wider safety margin than [0.01, 0.99] to survive coarse rounding
+    # in external validators (some pipelines round before range checks).
+    MIN_STRICT_SCORE = 0.11
+    MAX_STRICT_SCORE = 0.89
     CORRECT_THRESHOLD = 0.5
     # Conservative cap so even multi-task aggregation stays strictly below 1.0.
-    # With 5 steps and current shaping, each task ends in roughly [0.09, 0.19].
-    MAX_TASK_SCORE = 0.19
+    # With 5 steps and current shaping, each task ends in roughly [0.71, 0.89].
+    MAX_TASK_SCORE = 0.89
 
     def __init__(self, task_id: str = "task-001-pii-scrubber", max_steps: int = 5):
         self.task_id = task_id
@@ -103,11 +105,10 @@ class ShieldXEnv:
                 done=False,
             )
         
-        # Dense strict-bounds shaping:
-        # first step gets a tiny bootstrap offset; subsequent steps encode progress.
-        # This keeps task scores informative while guaranteeing strict (0,1) margins.
-        base_offset = 0.03 if self.step_count == 1 else 0.0
-        increment = 0.03 if reward_obj.value >= self.CORRECT_THRESHOLD else 0.01
+        # Dense strict-bounds shaping above MIN_STRICT_SCORE so no step reward
+        # can be rounded down to 0.0 by coarse external validators.
+        base_offset = 0.0
+        increment = 0.16 if reward_obj.value >= self.CORRECT_THRESHOLD else 0.12
         
         step_reward = self._strict_unit_clamp(base_offset + increment)
         

@@ -131,6 +131,15 @@ def reset(
         "observation": observation,
         "reward": initial,
         "done": False,
+        # Compatibility fields for validator pipelines that read task score directly.
+        "score": initial,
+        "task_score": initial,
+        "info": {
+            "score": initial,
+            "task_score": initial,
+            "cumulative_reward": initial,
+            "explanation": "Environment reset.",
+        },
     }
 
 @app.get("/state")
@@ -154,20 +163,26 @@ def state():
 
 
 @app.get("/grade")
-def grade():
-    env = get_session_env()
+def grade(task_id: str = ""):
+    # Allow direct grading by task_id without requiring prior reset() calls.
+    if task_id:
+        env = ShieldXEnv(task_id=str(task_id))
+        env.reset(task_id=str(task_id))
+    else:
+        env = get_session_env()
     score = float(env._strict_unit_clamp(env.evaluate_task()))
     return {
         "task_id": env.task.get("id"),
         "score": score,
+        "task_score": score,
         "done": bool(env.done),
     }
 
 
 @app.get("/grader")
-def grader():
+def grader(task_id: str = ""):
     # Alias for compatibility with validators using /grader naming.
-    return grade()
+    return grade(task_id=task_id)
 
 @app.post("/step")
 def step(action: Dict[str, Any] = Body(default_factory=dict)):
@@ -184,6 +199,10 @@ def step(action: Dict[str, Any] = Body(default_factory=dict)):
         "observation": observation,
         "reward": reward,
         "done": done,
+        "score": float((info or {}).get("score", reward)),
+        "task_score": float((info or {}).get("task_score", (info or {}).get("score", reward)),
+        ),
+        "info": info or {},
     }
 
 @app.websocket("/ws")
@@ -220,6 +239,9 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": True,
+                        "score": initial,
+                        "task_score": initial,
+                        "info": observation.get("metadata", {}),
                     },
                 }))
                 continue
@@ -246,6 +268,9 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": False,
+                        "score": initial,
+                        "task_score": initial,
+                        "info": observation.get("metadata", {}),
                     }
                     await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
 
@@ -260,6 +285,9 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": float(reward),
                         "done": bool(done),
+                        "score": float((info or {}).get("score", reward)),
+                        "task_score": float((info or {}).get("task_score", (info or {}).get("score", reward))),
+                        "info": info or {},
                     }
                     await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
 
@@ -300,6 +328,9 @@ async def ws(websocket: WebSocket):
                             "observation": observation,
                             "reward": initial,
                             "done": True,
+                            "score": initial,
+                            "task_score": initial,
+                            "info": observation.get("metadata", {}),
                         },
                     }))
             except Exception as exc:
@@ -319,6 +350,9 @@ async def ws(websocket: WebSocket):
                         "observation": observation,
                         "reward": initial,
                         "done": True,
+                        "score": initial,
+                        "task_score": initial,
+                        "info": observation.get("metadata", {}),
                     },
                 }))
     except WebSocketDisconnect:

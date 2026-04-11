@@ -1,29 +1,69 @@
 from typing import List, Dict, Any
 from .models import PrivacyAction, PrivacyReward
 
+CORRECT_SCORE = 0.85
+INCORRECT_SCORE = 0.15
+DUPLICATE_SCORE = 0.05
+IRRELEVANT_SCORE = 0.02
+
 def evaluate_pii_redaction(action: PrivacyAction, task: Dict[str, Any]) -> PrivacyReward:
     """Task 1: PII Scrubber"""
     target = action.target
     if target in task["ground_truth"]:
-        return PrivacyReward(value=0.25, partial_score=0.25, logic_explanation=f"Correctly identified PII: {target}", done=False)
+        return PrivacyReward(
+            value=CORRECT_SCORE,
+            partial_score=CORRECT_SCORE,
+            logic_explanation=f"Correctly identified PII: {target}",
+            done=False,
+        )
     else:
-        return PrivacyReward(value=-0.1, partial_score=-0.1, logic_explanation="Incorrect field flagged as PII", done=False)
+        return PrivacyReward(
+            value=INCORRECT_SCORE,
+            partial_score=INCORRECT_SCORE,
+            logic_explanation="Incorrect field flagged as PII",
+            done=False,
+        )
 
 def evaluate_erasure(action: PrivacyAction, task: Dict[str, Any]) -> PrivacyReward:
     """Task 3: Selective Erasure"""
     if action.operation == "delete" and action.target in task["ground_truth_delete"]:
-        return PrivacyReward(value=0.5, partial_score=0.5, logic_explanation="Successfully erased profile data.", done=False)
+        return PrivacyReward(
+            value=CORRECT_SCORE,
+            partial_score=CORRECT_SCORE,
+            logic_explanation="Successfully erased profile data.",
+            done=False,
+        )
     elif action.operation == "retain" and action.target in task["ground_truth_retain"]:
-        return PrivacyReward(value=0.5, partial_score=0.5, logic_explanation="Successfully retained billing history for tax compliance.", done=True)
+        return PrivacyReward(
+            value=CORRECT_SCORE,
+            partial_score=CORRECT_SCORE,
+            logic_explanation="Successfully retained billing history for tax compliance.",
+            done=True,
+        )
     else:
-        return PrivacyReward(value=-0.2, partial_score=-0.2, logic_explanation="Violation: Incorrect data handling.", done=False)
+        return PrivacyReward(
+            value=INCORRECT_SCORE,
+            partial_score=INCORRECT_SCORE,
+            logic_explanation="Violation: Incorrect data handling.",
+            done=False,
+        )
 
 def evaluate_breach(action: PrivacyAction, task: Dict[str, Any]) -> PrivacyReward:
     """Task 5: Breach Assessment"""
     if action.target in task["ground_truth"]:
-        return PrivacyReward(value=0.25, partial_score=0.25, logic_explanation=f"Identified affected user ID: {action.target}", done=False)
+        return PrivacyReward(
+            value=CORRECT_SCORE,
+            partial_score=CORRECT_SCORE,
+            logic_explanation=f"Identified affected user ID: {action.target}",
+            done=False,
+        )
     else:
-        return PrivacyReward(value=-0.05, partial_score=-0.05, logic_explanation="False detection of affected ID.", done=False)
+        return PrivacyReward(
+            value=INCORRECT_SCORE,
+            partial_score=INCORRECT_SCORE,
+            logic_explanation="False detection of affected ID.",
+            done=False,
+        )
 
 def grade_action(action: PrivacyAction, task: Dict[str, Any], state: Dict[str, Any]) -> PrivacyReward:
     t_id = task["id"]
@@ -32,7 +72,12 @@ def grade_action(action: PrivacyAction, task: Dict[str, Any], state: Dict[str, A
     # RL Robustness: Check if this exact target was already correctly handled
     already_done = any(h["action"]["target"] == action.target and h["reward"] > 0 for h in history)
     if already_done:
-        return PrivacyReward(value=0.0, partial_score=0.0, logic_explanation=f"Duplicate action: Redundancy identified for {action.target}", done=False)
+        return PrivacyReward(
+            value=DUPLICATE_SCORE,
+            partial_score=DUPLICATE_SCORE,
+            logic_explanation=f"Duplicate action: Redundancy identified for {action.target}",
+            done=False,
+        )
 
     if "pii-scrubber" in t_id:
         return evaluate_pii_redaction(action, task)
@@ -43,6 +88,16 @@ def grade_action(action: PrivacyAction, task: Dict[str, Any], state: Dict[str, A
     
     # Task 2 & 4: Correct targeting returns terminal success
     if action.target in task.get("ground_truth", []):
-        return PrivacyReward(value=0.5, partial_score=0.5, logic_explanation="Target correctly processed.", done=True)
+        return PrivacyReward(
+            value=CORRECT_SCORE,
+            partial_score=CORRECT_SCORE,
+            logic_explanation="Target correctly processed.",
+            done=True,
+        )
     
-    return PrivacyReward(value=0.01, partial_score=0.01, logic_explanation="Action irrelevant to task goal.", done=False)
+    return PrivacyReward(
+        value=IRRELEVANT_SCORE,
+        partial_score=IRRELEVANT_SCORE,
+        logic_explanation="Action irrelevant to task goal.",
+        done=False,
+    )

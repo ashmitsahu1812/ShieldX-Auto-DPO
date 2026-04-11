@@ -16,9 +16,9 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN is None:
     raise ValueError("HF_TOKEN environment variable is required")
 
-# OpenEnv base URL. Default to the live HF Space to avoid local port-binding
-# restrictions in some evaluation sandboxes. Override with ENV_URL if needed.
-ENV_URL = os.getenv("ENV_URL", "https://ashmit1812-scalarxmeta.hf.space")
+# OpenEnv base URL (local by default; the evaluator typically runs the env locally).
+# Override with ENV_URL to point at a remote Space if desired.
+ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:8000")
 
 # Hackathon validator expects strict open interval (0,1) for scores.
 STRICT_MIN = 0.01
@@ -93,11 +93,11 @@ async def _maybe_start_local_server(url: str) -> tuple[Optional[asyncio.subproce
 
     # Try a small port window to avoid collisions without binding sockets ourselves.
     # (Some sandboxes forbid opening sockets in-process, but allow subprocess attempts.)
-    base_port = 7860
+    base_port = 8000
     try:
         base_port = int(url.rsplit(":", 1)[-1])
     except Exception:
-        base_port = 7860
+        base_port = 8000
 
     stderr_path = "/tmp/shieldx_uvicorn_startup.log"
     for port in range(base_port, base_port + 10):

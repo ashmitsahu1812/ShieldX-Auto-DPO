@@ -3,7 +3,7 @@ FROM python:3.11-slim
 # Set environment variables for better logging and non-root execution
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=7860
+    PORT=8000
 
 WORKDIR /app
 
@@ -26,7 +26,9 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 # Copy the rest of the application
 COPY --chown=user . .
 
-EXPOSE 7860
+# OpenEnv's LocalDockerProvider maps host_port -> container:8000 by default.
+EXPOSE 8000
 
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
-
+# Use PORT so Hugging Face Spaces can override it (often PORT=7860),
+# while local Docker runs default to 8000.
+CMD ["sh", "-c", "uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

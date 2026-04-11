@@ -4,7 +4,7 @@ emoji: 🛡️
 colorFrom: blue
 colorTo: indigo
 sdk: docker
-app_port: 7860
+app_port: 8000
 pinned: false
 tags:
   - openenv
@@ -59,7 +59,7 @@ To ensure compatibility with all automated evaluators, ShieldX enforces **Strict
 ### **Quick Start (Hugging Face / Docker)**
 ```bash
 docker build -t shieldx .
-docker run -p 7860:7860 shieldx
+docker run -p 8000:8000 shieldx
 ```
 
 ### **Running the RL Baseline**

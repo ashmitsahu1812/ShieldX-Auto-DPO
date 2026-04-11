@@ -20,8 +20,20 @@ if HF_TOKEN is None:
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
 # --- LOGGING UTILS ---
+def _safe_print(line: str) -> None:
+    """
+    The evaluation harness is strict about stdout format. This helper ensures we:
+    - print only the required single-line records
+    - never crash with BrokenPipeError (e.g., when stdout is closed by a pipe)
+    """
+    try:
+        print(line, flush=True)
+    except BrokenPipeError:
+        # Exit quietly: do not emit tracebacks or any additional stdout.
+        os._exit(0)
+
 def log_start(task: str, env: str, model: str):
-    print(f"[START] task={task} env={env} model={model}", flush=True)
+    _safe_print(f"[START] task={task} env={env} model={model}")
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str] = None):
     safe_action = str(action).replace("\n", " ").replace("\r", " ")
@@ -29,16 +41,15 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     err_str = safe_error if safe_error else "null"
     done_str = "true" if done else "false"
     safe_reward = float(max(0.0, min(1.0, reward)))
-    print(
-        f"[STEP] step={step} action={safe_action} reward={safe_reward:.2f} done={done_str} error={err_str}",
-        flush=True,
+    _safe_print(
+        f"[STEP] step={step} action={safe_action} reward={safe_reward:.2f} done={done_str} error={err_str}"
     )
 
 def log_end(success: bool, steps: int, rewards: List[float]):
     success_str = "true" if success else "false"
     safe_rewards = [float(max(0.0, min(1.0, r))) for r in rewards]
     reward_str = ",".join([f"{r:.2f}" for r in safe_rewards])
-    print(f"[END] success={success_str} steps={steps} rewards={reward_str}", flush=True)
+    _safe_print(f"[END] success={success_str} steps={steps} rewards={reward_str}")
 
 
 async def _wait_for_env(url: str, timeout_s: float = 12.0) -> bool:

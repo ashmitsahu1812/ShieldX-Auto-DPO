@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .graders import action_alignment, grade_episode, strict_score, MIN_STRICT_SCORE
+from .graders import (
+    action_alignment,
+    confidence_multiplier,
+    grade_episode,
+    strict_score,
+    MIN_STRICT_SCORE,
+)
 from .models import MarketObservation, MarketReward, MarketState, TradeAction
 from .tasks import TASKS, get_task
 
@@ -24,8 +30,9 @@ class StockExchangeEnv:
         self.day_index = 0
         self.cash = float(self.task.get("initial_cash", 10000.0))
         self.initial_cash = self.cash
-        self.position = 0
-        self.avg_entry_price = 0.0
+        # Support tasks that start with an existing position (e.g. rebalancing)
+        self.position = int(self.task.get("initial_position", 0))
+        self.avg_entry_price = float(self.prices[0]) if self.position > 0 else 0.0
         self.done = False
         self.last_decision = "hold"
         self.cumulative_reward = MIN_STRICT_SCORE
@@ -41,6 +48,17 @@ class StockExchangeEnv:
     def next_price(self) -> float:
         next_idx = min(self.day_index + 1, len(self.prices) - 1)
         return float(self.prices[next_idx])
+
+    @property
+    def current_volatility(self) -> float:
+        vols = self.task.get("volatility", [])
+        if not vols or self.day_index >= len(vols):
+            return 0.0
+        return float(vols[self.day_index])
+
+    @property
+    def market_regime(self) -> str:
+        return str(self.task.get("market_regime", "unknown"))
 
     def _portfolio_value(self, mark_price: float) -> float:
         return float(self.cash + (self.position * mark_price))
@@ -102,6 +120,8 @@ class StockExchangeEnv:
             price_window=self._price_window(),
             momentum_1d=self._momentum(1),
             momentum_3d=self._momentum(3),
+            volatility=self.current_volatility,
+            market_regime=self.market_regime,
             cash=self.cash,
             position=self.position,
             avg_entry_price=self.avg_entry_price,
@@ -109,6 +129,10 @@ class StockExchangeEnv:
             peak_portfolio_value=self.peak_portfolio_value,
             drawdown=drawdown,
             last_decision=self.last_decision,
+            max_drawdown_limit=float(self.task.get("max_drawdown", 0.1)),
+            max_position_ratio=float(self.task.get("max_position_ratio", 0.7)),
+            target_position_ratio=self.task.get("target_position_ratio"),
+            min_cash_ratio=self.task.get("min_cash_ratio"),
             metadata={
                 "score": float(self.task_score),
                 "task_score": float(self.task_score),
@@ -135,9 +159,11 @@ class StockExchangeEnv:
             cumulative_reward=float(self.cumulative_reward),
             task_score=float(self.task_score),
             done=self.done,
+            market_regime=self.market_regime,
+            volatility=self.current_volatility,
         )
 
-    def reset(self, task_id: str | None = None) -> MarketObservation:
+    def reset(self, task_id: Optional[str] = None) -> MarketObservation:
         if task_id:
             self.task = get_task(str(task_id))
             self.task_id = self.task["id"]
@@ -182,6 +208,8 @@ class StockExchangeEnv:
         drawdown: float,
     ) -> MarketReward:
         align = action_alignment(action.decision, ideal_decision)
+        conf_mult = confidence_multiplier(action.confidence, align)
+
         ret_pct = (next_value - prev_value) / max(prev_value, 1.0)
         return_component = max(0.0, min(1.0, 0.5 + (ret_pct * 8.0)))
 
@@ -192,13 +220,24 @@ class StockExchangeEnv:
 
         max_drawdown = float(self.task.get("max_drawdown", 0.1))
         drawdown_penalty = max(0.0, (drawdown - max_drawdown) * 3.0)
-        risk_component = max(0.0, 1.0 - concentration_penalty - drawdown_penalty)
+
+        # Extra penalty for violating min_cash_ratio (rebalancing task)
+        min_cash_ratio = self.task.get("min_cash_ratio")
+        cash_penalty = 0.0
+        if min_cash_ratio is not None:
+            cash_ratio = self.cash / max(next_value, 1.0)
+            cash_penalty = max(0.0, (float(min_cash_ratio) - cash_ratio) * 2.0)
+
+        risk_component = max(0.0, 1.0 - concentration_penalty - drawdown_penalty - cash_penalty)
 
         raw = (0.45 * align) + (0.35 * return_component) + (0.2 * risk_component)
+        # Apply confidence multiplier — rewards calibrated confidence
+        raw = max(0.0, min(1.0, raw * conf_mult))
         reward = strict_score(raw)
 
         explanation = (
             f"decision={action.decision} ideal={ideal_decision} align={align:.2f} "
+            f"conf={action.confidence:.2f} conf_mult={conf_mult:.2f} "
             f"ret={ret_pct:.4f} risk={risk_component:.2f}"
         )
 
@@ -208,6 +247,7 @@ class StockExchangeEnv:
             action_alignment=align,
             return_component=return_component,
             risk_component=risk_component,
+            confidence_multiplier=conf_mult,
             explanation=explanation,
             done=self.done,
         )
@@ -255,6 +295,9 @@ class StockExchangeEnv:
         reward_obj = self._step_reward(action, ideal_decision, prev_value, next_value, drawdown)
         alignment = action_alignment(action.decision, ideal_decision)
 
+        # Update last_decision so the next observation reflects it
+        self.last_decision = action.decision
+
         self.history.append(
             {
                 "step": self.step_count,
@@ -268,6 +311,7 @@ class StockExchangeEnv:
                 "alignment": alignment,
                 "reward": float(reward_obj.reward),
                 "portfolio_value": float(next_value),
+                "confidence": float(action.confidence),
             }
         )
 
@@ -284,6 +328,7 @@ class StockExchangeEnv:
             "action_alignment": float(reward_obj.action_alignment),
             "return_component": float(reward_obj.return_component),
             "risk_component": float(reward_obj.risk_component),
+            "confidence_multiplier": float(reward_obj.confidence_multiplier),
             "executed_qty": int(executed_qty),
             "ideal_decision": ideal_decision,
             "explanation": reward_obj.explanation,

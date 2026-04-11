@@ -100,8 +100,6 @@ def main() -> None:
         "learning_rate": float(args.learning_rate),
         "gamma": float(args.gamma),
         "net_arch": net_arch,
-        "operations": template_env.operations,
-        "candidate_targets": template_env.candidate_targets,
         "task_ids": template_env.task_ids,
     }
     template_env.close()

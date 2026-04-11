@@ -4,16 +4,20 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
-version: "1.0.0"
+version: "2.0.0"
 description: >
   Real-world stock execution and risk-management simulation for training
-  trading agents with deterministic market scenarios.
+  trading agents with deterministic market scenarios. Agents act as junior
+  traders placing buy/sell/hold orders while balancing return, drawdown,
+  position concentration, and portfolio rebalancing objectives.
 author: ashmitsahu
 tags:
   - openenv
   - finance
   - stock-market
   - rl
+  - trading
+  - risk-management
 
 entrypoint:
   command: uvicorn server.app:app --host 0.0.0.0 --port 8000
@@ -26,6 +30,7 @@ interface:
     state: /state
     health: /health
     grader: /grader
+    tasks: /tasks
 
 observation_space:
   type: object
@@ -36,6 +41,12 @@ observation_space:
       type: string
     objective:
       type: string
+    market_regime:
+      type: string
+      description: "Qualitative regime: trending_up, mean_reverting, volatile, gradual_uptrend"
+    volatility:
+      type: number
+      description: "Current step volatility (std of recent returns)"
     day_index:
       type: integer
     max_days:
@@ -43,6 +54,15 @@ observation_space:
     current_price:
       type: number
     next_price:
+      type: number
+    price_window:
+      type: array
+      items:
+        type: number
+      description: "Last 5 prices including current"
+    momentum_1d:
+      type: number
+    momentum_3d:
       type: number
     cash:
       type: number
@@ -52,6 +72,18 @@ observation_space:
       type: number
     drawdown:
       type: number
+    last_decision:
+      type: string
+    max_drawdown_limit:
+      type: number
+    max_position_ratio:
+      type: number
+    target_position_ratio:
+      type: number
+      nullable: true
+    min_cash_ratio:
+      type: number
+      nullable: true
 
 action_space:
   type: object
@@ -63,26 +95,37 @@ action_space:
       enum: [buy, sell, hold]
     quantity:
       type: integer
+      description: "Shares to trade. Must be 0 for hold."
     confidence:
       type: number
+      description: "Agent confidence 0.0–1.0. Affects reward scaling."
     rationale:
       type: string
+      description: "One-sentence justification for auditability."
 
 tasks:
   - id: task-001-trend-following
     name: Trend-Following Execution
     difficulty: easy
-    description: Capture an upward trend with disciplined exits.
-    reward_range: [0.11, 0.89]
+    description: Capture an upward trend with disciplined entries and exits.
+    reward_range: [0.05, 0.95]
 
   - id: task-002-mean-reversion
     name: Mean-Reversion Swing
     difficulty: medium
     description: Buy pullbacks and trim into rebound zones.
-    reward_range: [0.11, 0.89]
+    reward_range: [0.05, 0.95]
 
   - id: task-003-risk-managed-hedge
     name: Risk-Managed Event Trading
     difficulty: hard
-    description: Manage volatile downside with risk-aware position sizing.
-    reward_range: [0.11, 0.89]
+    description: Navigate volatile downside with risk-aware position sizing.
+    reward_range: [0.05, 0.95]
+
+  - id: task-004-portfolio-rebalance
+    name: Dynamic Portfolio Rebalancing
+    difficulty: hard
+    description: >
+      Rebalance a concentrated equity position toward a 40% target while
+      maintaining a 30% minimum cash buffer. Sell into strength systematically.
+    reward_range: [0.05, 0.95]

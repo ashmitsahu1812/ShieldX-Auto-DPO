@@ -6,7 +6,9 @@ if __name__ == "__main__":
         env = StockExchangeEnv(task_id=task["id"])
         env.reset(task_id=task["id"])
 
-        actions = ["hold", "buy", "sell", "hold", "buy", "sell", "hold"]
+        actions = ["hold", "buy", "sell", "hold", "buy", "sell", "hold", "sell", "hold"]
+        info = {"score": 0.0}
+        done = False
         for decision in actions:
             if env.done:
                 break
@@ -21,4 +23,5 @@ if __name__ == "__main__":
                 }
             )
         print(f"task={task['id']} score={info['score']:.4f} done={done}")
-        assert 0.0 < info["score"] < 1.0
+        assert 0.0 < info["score"] < 1.0, f"Score out of range for {task['id']}: {info['score']}"
+    print("All diverse reward checks passed.")

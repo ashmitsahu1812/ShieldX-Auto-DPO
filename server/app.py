@@ -95,9 +95,37 @@ def tasks() -> Dict[str, Any]:
                 "symbol": task["symbol"],
                 "objective": task["objective"],
                 "max_steps": task["max_steps"],
+                "market_regime": task.get("market_regime", "unknown"),
+                "description": task.get("description", ""),
             }
             for task in StockExchangeEnv.TASKS
         ]
+    }
+
+
+@app.get("/tasks/{task_id}")
+def task_detail(task_id: str) -> Dict[str, Any]:
+    from .tasks import get_task
+    task = get_task(task_id)
+    return {
+        "id": task["id"],
+        "name": task["name"],
+        "difficulty": task["difficulty"],
+        "symbol": task["symbol"],
+        "objective": task["objective"],
+        "description": task.get("description", ""),
+        "max_steps": task["max_steps"],
+        "initial_cash": task.get("initial_cash", 10000.0),
+        "initial_position": task.get("initial_position", 0),
+        "target_return": task.get("target_return"),
+        "min_return": task.get("min_return"),
+        "max_drawdown": task.get("max_drawdown"),
+        "max_position_ratio": task.get("max_position_ratio"),
+        "target_position_ratio": task.get("target_position_ratio"),
+        "min_cash_ratio": task.get("min_cash_ratio"),
+        "market_regime": task.get("market_regime", "unknown"),
+        "ideal_actions": task.get("ideal_actions", []),
+        "prices": task.get("prices", []),
     }
 
 

@@ -13,28 +13,30 @@ load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
+# Support both HF_TOKEN and OPENAI_API_KEY; HF_TOKEN takes precedence
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+    raise ValueError("HF_TOKEN or OPENAI_API_KEY environment variable is required")
 
 ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:8000")
-STRICT_MIN = 0.11
-STRICT_MAX = 0.89
+STRICT_MIN = 0.05
+STRICT_MAX = 0.95
 
-TASK_SPECS: Dict[str, Dict[str, Any]] = {
-    "task-001-trend-following": {
-        "symbol": "NOVA",
-        "ideal_actions": ["buy", "buy", "hold", "hold", "sell"],
-    },
-    "task-002-mean-reversion": {
-        "symbol": "KITE",
-        "ideal_actions": ["buy", "buy", "hold", "sell", "sell", "buy"],
-    },
-    "task-003-risk-managed-hedge": {
-        "symbol": "ORCA",
-        "ideal_actions": ["hold", "sell", "hold", "buy", "sell", "sell", "hold"],
-    },
+SYSTEM_PROMPT = """You are an expert quantitative trader. Given market observations, decide the best action.
+
+You MUST respond with valid JSON only — no prose, no markdown fences. Schema:
+{
+  "decision": "buy" | "sell" | "hold",
+  "quantity": <integer 0-50>,
+  "confidence": <float 0.0-1.0>,
+  "rationale": "<one sentence>"
 }
+
+Rules:
+- quantity must be 0 when decision is "hold"
+- confidence reflects how certain you are (0.9+ = very confident)
+- rationale must reference the price trend or risk signal
+"""
 
 
 def _safe_print(line: str) -> None:
@@ -127,37 +129,74 @@ async def _maybe_start_local(base_url: str):
     raise RuntimeError("failed_to_start_local_env")
 
 
-def _deterministic_action(task_id: str, step_index: int) -> Dict[str, Any]:
-    spec = TASK_SPECS.get(task_id, {"symbol": "NOVA", "ideal_actions": ["hold"]})
-    ideal = spec["ideal_actions"]
-    decision = ideal[min(step_index, len(ideal) - 1)]
-    quantity = 10 if decision in {"buy", "sell"} else 0
-    return {
-        "symbol": spec["symbol"],
-        "decision": decision,
-        "quantity": quantity,
-        "confidence": 0.9,
-        "rationale": "deterministic_baseline",
-    }
+def _build_user_prompt(obs: Dict[str, Any], step: int, history: List[str]) -> str:
+    """Build a rich prompt from the current market observation."""
+    price_window = obs.get("price_window", [obs.get("current_price", 0)])
+    price_str = " → ".join(f"{p:.2f}" for p in price_window)
+    history_str = "\n".join(history[-3:]) if history else "No prior steps."
 
-
-def _touch_model(client: OpenAI, task_id: str, step_index: int, obs: Dict[str, Any]) -> None:
-    prompt = (
-        "You are a stock execution assistant. "
-        f"task={task_id} step={step_index + 1} "
-        f"symbol={obs.get('symbol')} price={obs.get('current_price')} "
-        "Reply with a one-line risk note."
+    return (
+        f"=== Step {step} | Task: {obs.get('task_id', '?')} ===\n"
+        f"Objective: {obs.get('objective', '')}\n"
+        f"Symbol: {obs.get('symbol', '?')} | Regime: {obs.get('market_regime', 'unknown')} | "
+        f"Volatility: {obs.get('volatility', 0.0):.4f}\n"
+        f"Price path: {price_str}\n"
+        f"Current: ${obs.get('current_price', 0):.2f} | Next hint: ${obs.get('next_price', 0):.2f}\n"
+        f"Momentum 1d: {obs.get('momentum_1d', 0):.4f} | 3d: {obs.get('momentum_3d', 0):.4f}\n"
+        f"Portfolio: ${obs.get('portfolio_value', 0):.2f} | Cash: ${obs.get('cash', 0):.2f} | "
+        f"Position: {obs.get('position', 0)} shares\n"
+        f"Drawdown: {obs.get('drawdown', 0):.4f} | Max allowed: {obs.get('max_drawdown_limit', 0.1):.2f}\n"
+        f"Progress: day {obs.get('day_index', 0)}/{obs.get('max_days', 0)}\n"
+        f"Recent actions:\n{history_str}\n\n"
+        f"Respond with JSON only."
     )
+
+
+def _llm_action(
+    client: OpenAI,
+    obs: Dict[str, Any],
+    step: int,
+    history: List[str],
+) -> Dict[str, Any]:
+    """Ask the LLM for a trading decision. Falls back to hold on any failure."""
+    symbol = obs.get("symbol", "NOVA")
+    fallback = {"symbol": symbol, "decision": "hold", "quantity": 0, "confidence": 0.5, "rationale": "llm_fallback"}
+
     try:
-        client.chat.completions.create(
+        prompt = _build_user_prompt(obs, step, history)
+        response = client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             temperature=0.0,
-            max_tokens=24,
+            max_tokens=120,
         )
-    except Exception:
-        # Silent fallback; we still run deterministic baseline actions.
-        pass
+        raw = response.choices[0].message.content or ""
+        # Strip markdown fences if model wraps anyway
+        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+        parsed = json.loads(raw)
+
+        decision = str(parsed.get("decision", "hold")).lower()
+        if decision not in {"buy", "sell", "hold"}:
+            decision = "hold"
+        quantity = int(parsed.get("quantity", 0))
+        if decision == "hold":
+            quantity = 0
+        confidence = float(parsed.get("confidence", 0.5))
+        rationale = str(parsed.get("rationale", "llm_decision"))
+
+        return {
+            "symbol": symbol,
+            "decision": decision,
+            "quantity": max(0, min(50, quantity)),
+            "confidence": max(0.0, min(1.0, confidence)),
+            "rationale": rationale,
+        }
+    except Exception as exc:
+        _safe_print(f"[DEBUG] LLM parse error: {exc}")
+        return fallback
 
 
 async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
@@ -165,8 +204,8 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
 
     rewards: List[float] = []
     steps_taken = 0
-    success = False
     last_error: Optional[str] = None
+    action_history: List[str] = []
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as http:
@@ -180,8 +219,9 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
                 if done:
                     break
 
-                _touch_model(client, task_id, step - 1, obs)
-                action = _deterministic_action(task_id, step - 1)
+                # LLM drives the decision
+                action = _llm_action(client, obs, step, action_history)
+
                 step_res = await http.post(f"{env_url}/step", json={"action": action})
                 result = step_res.json()
 
@@ -191,9 +231,12 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
 
                 rewards.append(reward)
                 steps_taken = step
+                action_summary = f"{action['decision']}:{action['quantity']}@conf={action['confidence']:.2f}"
+                action_history.append(f"Step {step}: {action_summary} → reward {reward:.2f}")
+
                 log_step(
                     step=step,
-                    action=f"{action['decision']}:{action['quantity']}",
+                    action=action_summary,
                     reward=reward,
                     done=done,
                     error=None,
@@ -201,14 +244,20 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
 
     except Exception as exc:
         last_error = str(exc)
+        if not rewards:
+            rewards = [STRICT_MIN]
+            steps_taken = 1
+            log_step(step=1, action="hold:0", reward=STRICT_MIN, done=True, error=last_error)
 
-    if not rewards:
-        rewards = [STRICT_MIN]
-        steps_taken = 1
-        log_step(step=1, action="hold:0", reward=STRICT_MIN, done=True, error=last_error or "env_error")
+    finally:
+        if not rewards:
+            rewards = [STRICT_MIN]
+            steps_taken = 1
+            log_step(step=1, action="hold:0", reward=STRICT_MIN, done=True, error=last_error or "env_error")
 
-    success = (sum(rewards) / float(max(len(rewards), 1))) >= 0.3
-    log_end(success=success, steps=steps_taken, rewards=rewards)
+        avg_score = sum(rewards) / float(max(len(rewards), 1))
+        success = avg_score >= 0.3
+        log_end(success=success, steps=steps_taken, rewards=rewards)
 
 
 async def main() -> None:
@@ -233,6 +282,7 @@ async def main() -> None:
                 "task-001-trend-following",
                 "task-002-mean-reversion",
                 "task-003-risk-managed-hedge",
+                "task-004-portfolio-rebalance",
             ]
 
         for task_id in tasks:

@@ -64,26 +64,16 @@ def main() -> None:
     else:
         model = DQN.load(str(model_path))
 
+    _default_task_ids = [
+        "task-001-trend-following",
+        "task-002-mean-reversion",
+        "task-003-risk-managed-hedge",
+    ]
     if Path(args.meta).exists():
         meta = json.loads(Path(args.meta).read_text(encoding="utf-8"))
-        task_ids = meta.get(
-            "task_ids",
-            [
-                "task-001-pii-scrubber",
-                "task-002-dsar-export",
-                "task-003-selective-erasure",
-                "task-004-cross-border-audit",
-                "task-005-breach-reporting",
-            ],
-        )
+        task_ids = meta.get("task_ids", _default_task_ids)
     else:
-        task_ids = [
-            "task-001-pii-scrubber",
-            "task-002-dsar-export",
-            "task-003-selective-erasure",
-            "task-004-cross-border-audit",
-            "task-005-breach-reporting",
-        ]
+        task_ids = _default_task_ids
 
     all_metrics = []
     for task_id in task_ids:

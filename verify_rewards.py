@@ -28,4 +28,5 @@ if __name__ == "__main__":
     for task in StockExchangeEnv.TASKS:
         score = run_rollout(task["id"])
         print(f"task={task['id']} total_reward={score:.4f}")
-        assert 0.0 < score < 10.0
+        assert 0.0 < score < 10.0, f"Reward out of range for {task['id']}: {score}"
+    print("All reward checks passed.")

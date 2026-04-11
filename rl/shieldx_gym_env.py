@@ -32,12 +32,12 @@ class ShieldXGymEnv(gym.Env):
         self.qty_buckets = [0, 5, 10]
         self.action_space = spaces.Discrete(len(self.decisions) * len(self.qty_buckets))
 
-        # [task one-hot] + [cash_ratio, position_ratio, momentum_1d, momentum_3d, drawdown, progress]
+        # [task one-hot] + [cash_ratio, position_ratio, momentum_1d, momentum_3d, drawdown, progress, volatility]
         self.n_tasks = len(self.task_ids)
         self.n_operations = len(self.decisions)
         self.observation_space = spaces.Box(
-            low=np.array([0.0] * (self.n_tasks + 6), dtype=np.float32),
-            high=np.array([1.0] * self.n_tasks + [2.0, 2.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float32),
+            low=np.array([0.0] * (self.n_tasks + 7), dtype=np.float32),
+            high=np.array([1.0] * self.n_tasks + [2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -87,6 +87,7 @@ class ShieldXGymEnv(gym.Env):
                 float(obs.get("momentum_3d", 0.0)),
                 float(obs.get("drawdown", 0.0)),
                 progress,
+                float(obs.get("volatility", 0.0)),
             ],
             dtype=np.float32,
         )

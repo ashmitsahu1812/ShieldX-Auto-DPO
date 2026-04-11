@@ -69,6 +69,13 @@ docker run -p 7860:7860 shieldx
 python3 inference.py
 ```
 
+Baseline (deterministic fallback) scores from a clean run:
+- `task-001-pii-scrubber`: `0.3000`
+- `task-002-dsar-export`: `0.2200`
+- `task-003-selective-erasure`: `0.3000`
+- `task-004-cross-border-audit`: `0.2200`
+- `task-005-breach-reporting`: `0.7000`
+
 ### **Training a Native RL Agent (Q-learning)**
 ShieldX now includes a from-scratch RL pipeline in `rl/` (custom Gym wrapper + tabular Q-learning trainer).
 
@@ -90,6 +97,11 @@ Core files:
 
 ### **Training Deep RL Agents (SB3 PPO / DQN)**
 You can also train neural policies using Stable-Baselines3:
+
+Install SB3 locally (optional):
+```bash
+python3 -m pip install -r requirements-rl.txt
+```
 
 Train PPO:
 ```bash
@@ -116,9 +128,10 @@ ShieldX is 100% compliant with the OpenEnv Hackathon requirements. All logs gene
 ---
 
 ### **Environment Variables**
-- `HF_TOKEN`: **Mandatory** for model-based inference.
+- `HF_TOKEN` or `OPENAI_API_KEY`: **Mandatory** for model-based inference.
 - `API_BASE_URL`: Default is `https://router.huggingface.co/v1`.
 - `MODEL_NAME`: Default is `Qwen/Qwen2.5-Coder-32B-Instruct`.
+- `ENV_URL`: Default is `http://localhost:7860` (the inference script auto-starts the local server if needed).
 
 ---
 *ShieldX is a production-ready RL environment localized for the India Data Privacy landscape.*

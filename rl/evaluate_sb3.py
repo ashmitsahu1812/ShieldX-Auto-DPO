@@ -3,8 +3,6 @@ import json
 from pathlib import Path
 from typing import Dict
 
-from stable_baselines3 import DQN, PPO
-
 from rl.shieldx_gym_env import ShieldXGymEnv
 
 MIN_STRICT_SCORE = 0.01
@@ -42,6 +40,13 @@ def evaluate_task(task_id: str, model, episodes: int, max_steps: int) -> Dict[st
 
 
 def main() -> None:
+    try:
+        from stable_baselines3 import DQN, PPO
+    except Exception as exc:
+        raise RuntimeError(
+            "stable-baselines3 is not installed. Install it with: pip install -r requirements-rl.txt"
+        ) from exc
+
     parser = argparse.ArgumentParser(description="Evaluate ShieldX SB3 policy")
     parser.add_argument("--algo", choices=["ppo", "dqn"], default="ppo")
     parser.add_argument("--model", type=str, default="artifacts/sb3_model.zip")

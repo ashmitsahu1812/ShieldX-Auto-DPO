@@ -3,6 +3,8 @@ import json
 import asyncio
 import logging
 import httpx
+import time
+from contextlib import suppress
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -11,10 +13,10 @@ from dotenv import load_dotenv
 load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-32B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 
 # OpenEnv Internal Address (during local/Docker execution)
-ENV_URL = "http://localhost:7860"
+ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
 # --- LOGGING UTILS ---
 def log_start(task: str, env: str, model: str):
@@ -39,6 +41,64 @@ def log_end(success: bool, steps: int, rewards: List[float]):
     
     reward_str = ",".join([f"{r:.4f}" for r in safe_rewards])
     print(f"[END] success={success_str} steps={steps} score={task_score:.4f} rewards={reward_str}", flush=True)
+
+
+async def _wait_for_env(url: str, timeout_s: float = 12.0) -> bool:
+    deadline = time.time() + timeout_s
+    async with httpx.AsyncClient(timeout=2.0) as http:
+        while time.time() < deadline:
+            try:
+                resp = await http.get(f"{url}/health")
+                if resp.status_code == 200:
+                    return True
+            except Exception:
+                await asyncio.sleep(0.25)
+    return False
+
+
+async def _maybe_start_local_server(url: str) -> tuple[Optional[asyncio.subprocess.Process], str]:
+    # Only auto-start when targeting localhost.
+    if not (url.startswith("http://localhost:") or url.startswith("http://127.0.0.1:")):
+        return None, url
+
+    if await _wait_for_env(url, timeout_s=1.5):
+        return None, url
+
+    # Try a small port window to avoid collisions without binding sockets ourselves.
+    # (Some sandboxes forbid opening sockets in-process, but allow subprocess attempts.)
+    base_port = 7860
+    try:
+        base_port = int(url.rsplit(":", 1)[-1])
+    except Exception:
+        base_port = 7860
+
+    stderr_path = "/tmp/shieldx_uvicorn_startup.log"
+    for port in range(base_port, base_port + 10):
+        local_url = f"http://127.0.0.1:{port}"
+        stderr_file = open(stderr_path, "wb")
+        proc = await asyncio.create_subprocess_exec(
+            "python3",
+            "-m",
+            "uvicorn",
+            "server.app:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=stderr_file,
+        )
+
+        ok = await _wait_for_env(local_url, timeout_s=8.0)
+        if ok:
+            return proc, local_url
+
+        with suppress(ProcessLookupError):
+            proc.terminate()
+        with suppress(Exception):
+            await proc.wait()
+
+    raise RuntimeError(f"Failed to start local env server for inference. See {stderr_path}")
 
 # --- INFERENCE ENGINE ---
 async def get_privacy_action(client: OpenAI, obs: Dict[str, Any]) -> Dict[str, Any]:
@@ -110,7 +170,7 @@ def get_fallback_action(obs: Dict[str, Any]) -> Dict[str, Any]:
         return {"operation": "notify", "target": target, "legal_basis": "CERT-In disclosure", "reasoning": "Breach fallback"}
     return {"operation": "retain", "target": "unknown", "legal_basis": "fallback", "reasoning": "Default fallback"}
 
-async def run_task(client: OpenAI, task_id: str):
+async def run_task(client: OpenAI, task_id: str, env_url: str):
     log_start(task=task_id, env="shieldx_privacy_env", model=MODEL_NAME)
     
     rewards = []
@@ -120,14 +180,14 @@ async def run_task(client: OpenAI, task_id: str):
     try:
         async with httpx.AsyncClient(timeout=30.0) as http:
             # Reset Env
-            resp = await http.post(f"{ENV_URL}/reset?task_id={task_id}")
+            resp = await http.post(f"{env_url}/reset?task_id={task_id}")
             obs = resp.json()
             
             for step in range(1, 6): # Max Steps
                 action_dict = await get_privacy_action(client, obs)
                 
                 # Step Env
-                step_resp = await http.post(f"{ENV_URL}/step", json=action_dict)
+                step_resp = await http.post(f"{env_url}/step", json=action_dict)
                 result = step_resp.json()
                 
                 obs = result["observation"]
@@ -154,10 +214,17 @@ async def run_task(client: OpenAI, task_id: str):
 
 async def main():
     client = None
-    if HF_TOKEN:
-        client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    if API_KEY:
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     else:
-        print("[INFO] HF_TOKEN not set. Running deterministic fallback policy.", flush=True)
+        print("[INFO] HF_TOKEN/OPENAI_API_KEY not set. Running deterministic fallback policy.", flush=True)
+
+    env_url = ENV_URL
+    server_proc = None
+    try:
+        server_proc, env_url = await _maybe_start_local_server(env_url)
+    except Exception as exc:
+        print(f"[DEBUG] Could not auto-start local env server: {exc}", flush=True)
     
     # Run all 5 tasks sequentially
     tasks = [
@@ -170,9 +237,15 @@ async def main():
     
     for tid in tasks:
         try:
-            await run_task(client, tid)
+            await run_task(client, tid, env_url)
         except Exception as e:
             print(f"Task {tid} failed: {e}")
+
+    if server_proc is not None:
+        with suppress(ProcessLookupError):
+            server_proc.terminate()
+        with suppress(Exception):
+            await server_proc.wait()
 
 if __name__ == "__main__":
     asyncio.run(main())

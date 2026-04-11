@@ -20,10 +20,14 @@ dependencies = [
     "python-dotenv",
     "gymnasium",
     "numpy",
-    "stable-baselines3",
     "jinja2",
     "python-multipart",
     "openenv-core"
+]
+
+[project.optional-dependencies]
+rl = [
+    "stable-baselines3"
 ]
 
 [project.urls]

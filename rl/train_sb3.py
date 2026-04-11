@@ -3,9 +3,6 @@ import json
 from pathlib import Path
 from typing import List
 
-from stable_baselines3 import DQN, PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
-
 from rl.shieldx_gym_env import ShieldXGymEnv
 
 
@@ -21,6 +18,14 @@ def parse_layers(value: str) -> List[int]:
 
 
 def main() -> None:
+    try:
+        from stable_baselines3 import DQN, PPO
+        from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
+    except Exception as exc:
+        raise RuntimeError(
+            "stable-baselines3 is not installed. Install it with: pip install -r requirements-rl.txt"
+        ) from exc
+
     parser = argparse.ArgumentParser(description="Train ShieldX with SB3 PPO or DQN")
     parser.add_argument("--algo", choices=["ppo", "dqn"], default="ppo")
     parser.add_argument("--timesteps", type=int, default=50_000)

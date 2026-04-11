@@ -6,7 +6,6 @@ httpx
 python-dotenv
 gymnasium
 numpy
-stable-baselines3
 jinja2
 python-multipart
 openenv-core

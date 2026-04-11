@@ -34,9 +34,11 @@ def log_end(success: bool, steps: int, rewards: List[float]):
     
     # Final safety clamp: Ensure NO reward is outside (0.01, 0.99)
     safe_rewards = [max(0.01, min(0.99, r)) for r in rewards]
+    # Explicit per-task score for validator compatibility.
+    task_score = max(0.01, min(0.99, sum(safe_rewards)))
     
     reward_str = ",".join([f"{r:.4f}" for r in safe_rewards])
-    print(f"[END] success={success_str} steps={steps} rewards={reward_str}", flush=True)
+    print(f"[END] success={success_str} steps={steps} score={task_score:.4f} rewards={reward_str}", flush=True)
 
 # --- INFERENCE ENGINE ---
 async def get_privacy_action(client: OpenAI, obs: Dict[str, Any]) -> Dict[str, Any]:

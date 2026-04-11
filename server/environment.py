@@ -34,6 +34,29 @@ class ShieldXEnv:
             return self.MIN_STRICT_SCORE
         return max(self.MIN_STRICT_SCORE, min(self.MAX_STRICT_SCORE, number))
 
+    def _coerce_action(self, action_input: Any) -> PrivacyAction:
+        """Best-effort action coercion so malformed payloads do not crash scoring."""
+        default_payload = {
+            "operation": "retain",
+            "target": "unknown",
+            "legal_basis": "fallback",
+            "reasoning": "fallback action used",
+        }
+        if isinstance(action_input, PrivacyAction):
+            return action_input
+        if isinstance(action_input, dict):
+            payload = {
+                "operation": action_input.get("operation", default_payload["operation"]),
+                "target": str(action_input.get("target", default_payload["target"])),
+                "legal_basis": str(action_input.get("legal_basis", default_payload["legal_basis"])),
+                "reasoning": str(action_input.get("reasoning", default_payload["reasoning"])),
+            }
+            try:
+                return PrivacyAction(**payload)
+            except Exception:
+                return PrivacyAction(**default_payload)
+        return PrivacyAction(**default_payload)
+
     def reset(self) -> PrivacyObservation:
         self.step_count = 0
         self.total_reward = self.MIN_STRICT_SCORE
@@ -53,7 +76,7 @@ class ShieldXEnv:
             max_steps=self.max_steps
         )
 
-    def step(self, action: PrivacyAction) -> Tuple[PrivacyObservation, float, bool, Dict[str, Any]]:
+    def step(self, action: Any) -> Tuple[PrivacyObservation, float, bool, Dict[str, Any]]:
         if self.done:
             safe_score = self._strict_unit_clamp(self.total_reward)
             return self.state(), self.MIN_STRICT_SCORE, True, {
@@ -64,7 +87,16 @@ class ShieldXEnv:
             }
             
         self.step_count += 1
-        reward_obj = grade_action(action, self.task, {"history": self.history})
+        safe_action = self._coerce_action(action)
+        try:
+            reward_obj = grade_action(safe_action, self.task, {"history": self.history})
+        except Exception as exc:
+            reward_obj = PrivacyReward(
+                value=self.MIN_STRICT_SCORE,
+                partial_score=self.MIN_STRICT_SCORE,
+                logic_explanation=f"Grading fallback due to internal error: {exc}",
+                done=False,
+            )
         
         # TRIPLE-BUFFER MODEL:
         # Base offset = 0.10 (added only to the first step's reward)
@@ -86,7 +118,7 @@ class ShieldXEnv:
         
         self.history.append({
             "step": self.step_count,
-            "action": action.dict(),
+            "action": safe_action.dict(),
             "reward": float(self._strict_unit_clamp(step_reward)),
             "cumulative": float(self._strict_unit_clamp(self.total_reward)),
             "logic": reward_obj.logic_explanation

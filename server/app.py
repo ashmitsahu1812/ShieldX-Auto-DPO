@@ -1,7 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .models import PrivacyAction, PrivacyObservation, PrivacyReward
 from .environment import ShieldXEnv
 from typing import Dict, Any
 import os
@@ -39,7 +38,7 @@ def state():
     return env.state()
 
 @app.post("/step")
-def step(action: PrivacyAction):
+def step(action: Dict[str, Any]):
     env = get_session_env()
     obs, reward, done, info = env.step(action)
     return {

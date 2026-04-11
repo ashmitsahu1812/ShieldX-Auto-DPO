@@ -2,7 +2,7 @@ import math
 from typing import Dict, Any, Tuple, Optional
 from .models import PrivacyAction, PrivacyObservation, PrivacyReward
 from .tasks import get_task, TASKS
-from .graders import grade_action
+from .graders import grade_action, grade_task_score
 
 class ShieldXEnv:
     """
@@ -24,6 +24,7 @@ class ShieldXEnv:
         self.max_steps = max_steps
         self.step_count = 0
         self.total_reward = self.MIN_STRICT_SCORE
+        self.current_score = self.MIN_STRICT_SCORE
         self.history = []
         self.done = False
 
@@ -85,11 +86,12 @@ class ShieldXEnv:
 
     def step(self, action: Any) -> Tuple[PrivacyObservation, float, bool, Dict[str, Any]]:
         if self.done:
-            safe_score = self._strict_unit_clamp(self.total_reward)
+            safe_score = self._strict_unit_clamp(self.current_score)
             return self.state(), self.MIN_STRICT_SCORE, True, {
                 "msg": "Episode already finished.",
                 "cumulative_reward": safe_score,
                 "score": safe_score,
+                "task_score": safe_score,
                 "explanation": "No-op: episode already finished.",
             }
             
@@ -128,11 +130,27 @@ class ShieldXEnv:
         
         if reward_obj.done or self.step_count >= self.max_steps:
             self.done = True
+
+        # Explicit task-level grader output (strictly inside (0,1)).
+        task_score = float(
+            self._strict_unit_clamp(
+                grade_task_score(self.task, self.history, self.done, self.max_steps)
+            )
+        )
+        self.current_score = max(self.current_score, task_score)
+        self.total_reward = max(self.total_reward, self.current_score)
         
         safe_step_reward = float(self._strict_unit_clamp(step_reward))
-        safe_total_reward = float(self._strict_unit_clamp(self.total_reward))
+        safe_total_reward = float(self._strict_unit_clamp(self.current_score))
         return self.state(), safe_step_reward, self.done, {
             "cumulative_reward": safe_total_reward,
             "score": safe_total_reward,
+            "task_score": safe_total_reward,
             "explanation": reward_obj.logic_explanation
         }
+
+    def evaluate_task(self) -> float:
+        """Return deterministic task-level score in strict open interval."""
+        score = grade_task_score(self.task, self.history, self.done, self.max_steps)
+        self.current_score = float(self._strict_unit_clamp(score))
+        return self.current_score

@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Set
 
 from .models import PrivacyAction, PrivacyReward
 
@@ -27,6 +27,65 @@ def _build_reward(value: float, explanation: str, done: bool) -> PrivacyReward:
         logic_explanation=explanation,
         done=done,
     )
+
+
+def _task_targets(task: Dict[str, Any]) -> Set[str]:
+    targets: Set[str] = set()
+    for key in ("ground_truth", "ground_truth_delete", "ground_truth_retain"):
+        values = task.get(key, [])
+        if isinstance(values, list):
+            for value in values:
+                targets.add(str(value))
+    return targets
+
+
+def _is_positive_logic(logic: str) -> bool:
+    text = str(logic or "").lower()
+    positive_markers = (
+        "correctly",
+        "successfully",
+        "identified",
+        "target correctly processed",
+        "retained billing",
+    )
+    return any(marker in text for marker in positive_markers)
+
+
+def grade_task_score(
+    task: Dict[str, Any],
+    history: List[Dict[str, Any]],
+    done: bool,
+    max_steps: int,
+) -> float:
+    """
+    Deterministic task-level grader.
+    Returns a strict score in (0,1), weighted by coverage, correctness, and completion.
+    """
+    if not history:
+        return MIN_STRICT_SCORE
+
+    targets = _task_targets(task)
+    acted_targets: List[str] = []
+    positive_steps = 0
+    for entry in history:
+        action = entry.get("action", {})
+        target = str(action.get("target", ""))
+        acted_targets.append(target)
+        if _is_positive_logic(str(entry.get("logic", ""))):
+            positive_steps += 1
+
+    unique_acted = set(acted_targets)
+    hit_targets = unique_acted.intersection(targets) if targets else set()
+
+    coverage = float(len(hit_targets)) / float(max(len(targets), 1))
+    correctness = float(positive_steps) / float(max(len(history), 1))
+    efficiency = float(len(unique_acted)) / float(max(len(history), 1))
+    progress = min(float(len(history)) / float(max(max_steps, 1)), 1.0)
+    completion = 1.0 if done else (0.5 * progress)
+
+    raw = (0.45 * coverage) + (0.25 * correctness) + (0.15 * efficiency) + (0.15 * completion)
+    scaled = MIN_STRICT_SCORE + (MAX_STRICT_SCORE - MIN_STRICT_SCORE) * raw
+    return _strict_score(scaled)
 
 
 def evaluate_pii_redaction(action: PrivacyAction, task: Dict[str, Any]) -> PrivacyReward:

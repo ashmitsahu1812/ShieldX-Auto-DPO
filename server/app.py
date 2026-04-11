@@ -122,6 +122,7 @@ def reset(
         obs,
         {
             "score": initial,
+            "task_score": initial,
             "cumulative_reward": initial,
             "explanation": "Environment reset.",
         },
@@ -135,19 +136,38 @@ def reset(
 @app.get("/state")
 def state():
     env = get_session_env()
-    safe_score = float(env._strict_unit_clamp(env.total_reward))
+    safe_score = float(env._strict_unit_clamp(env.evaluate_task()))
     payload = _attach_metadata(
         env.state(),
         {
             "score": safe_score,
+            "task_score": safe_score,
             "cumulative_reward": safe_score,
             "explanation": "Current environment state.",
         },
     )
     # Compatibility: expose score fields at top-level for legacy parsers.
     payload["score"] = safe_score
+    payload["task_score"] = safe_score
     payload["cumulative_reward"] = safe_score
     return payload
+
+
+@app.get("/grade")
+def grade():
+    env = get_session_env()
+    score = float(env._strict_unit_clamp(env.evaluate_task()))
+    return {
+        "task_id": env.task.get("id"),
+        "score": score,
+        "done": bool(env.done),
+    }
+
+
+@app.get("/grader")
+def grader():
+    # Alias for compatibility with validators using /grader naming.
+    return grade()
 
 @app.post("/step")
 def step(action: Dict[str, Any] = Body(default_factory=dict)):
@@ -189,6 +209,7 @@ async def ws(websocket: WebSocket):
                     env.state(),
                     {
                         "score": initial,
+                        "task_score": initial,
                         "cumulative_reward": initial,
                         "explanation": f"Invalid JSON: {exc}",
                     },
@@ -216,6 +237,7 @@ async def ws(websocket: WebSocket):
                         obs,
                         {
                             "score": initial,
+                            "task_score": initial,
                             "cumulative_reward": initial,
                             "explanation": "Environment reset.",
                         },
@@ -243,16 +265,18 @@ async def ws(websocket: WebSocket):
 
                 elif msg_type == "state":
                     state_obj = env.state()
-                    safe_score = float(env._strict_unit_clamp(env.total_reward))
+                    safe_score = float(env._strict_unit_clamp(env.evaluate_task()))
                     state_payload = _attach_metadata(
                         state_obj,
                         {
                             "score": safe_score,
+                            "task_score": safe_score,
                             "cumulative_reward": safe_score,
                             "explanation": "Current environment state.",
                         },
                     )
                     state_payload["score"] = safe_score
+                    state_payload["task_score"] = safe_score
                     state_payload["cumulative_reward"] = safe_score
                     await websocket.send_text(json.dumps({"type": "state", "data": state_payload}))
 
@@ -265,6 +289,7 @@ async def ws(websocket: WebSocket):
                         env.state(),
                         {
                             "score": initial,
+                            "task_score": initial,
                             "cumulative_reward": initial,
                             "explanation": f"Unknown message type: {msg_type}",
                         },
@@ -283,6 +308,7 @@ async def ws(websocket: WebSocket):
                     env.state(),
                     {
                         "score": initial,
+                        "task_score": initial,
                         "cumulative_reward": initial,
                         "explanation": f"Internal error: {exc}",
                     },

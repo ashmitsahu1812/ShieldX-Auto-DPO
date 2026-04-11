@@ -187,7 +187,8 @@ async def run_task(client: OpenAI, task_id: str, env_url: str):
         async with httpx.AsyncClient(timeout=30.0) as http:
             # Reset Env
             resp = await http.post(f"{env_url}/reset?task_id={task_id}")
-            obs = resp.json()
+            reset_payload = resp.json()
+            obs = reset_payload.get("observation", reset_payload)
             
             for step in range(1, 6): # Max Steps
                 action_dict = await get_privacy_action(client, obs)
@@ -196,9 +197,9 @@ async def run_task(client: OpenAI, task_id: str, env_url: str):
                 step_resp = await http.post(f"{env_url}/step", json=action_dict)
                 result = step_resp.json()
                 
-                obs = result["observation"]
-                reward = result["reward"]
-                done = result["done"]
+                obs = result.get("observation", result)
+                reward = result.get("reward", 0.0)
+                done = result.get("done", False)
                 
                 rewards.append(reward)
                 steps_taken = step

@@ -39,8 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateState(state) {
-        if (!state) return;
+    function updateState(payload) {
+        if (!payload) return;
+        const state = payload.observation ? payload.observation : payload;
         
         // Update Viewports
         dataBuffer.innerText = state.data_buffer || 'No data in buffer.';

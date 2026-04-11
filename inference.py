@@ -19,8 +19,8 @@ if HF_TOKEN is None:
     raise ValueError("HF_TOKEN or OPENAI_API_KEY environment variable is required")
 
 ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:8000")
-STRICT_MIN = 0.05
-STRICT_MAX = 0.95
+STRICT_MIN = 0.01
+STRICT_MAX = 0.99
 
 SYSTEM_PROMPT = """You are an expert quantitative trader. Given market observations, decide the best action.
 

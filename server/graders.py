@@ -1,8 +1,8 @@
 from typing import Any, Dict, List
 
 
-MIN_STRICT_SCORE = 0.05
-MAX_STRICT_SCORE = 0.95
+MIN_STRICT_SCORE = 0.01
+MAX_STRICT_SCORE = 0.99
 
 
 def strict_score(value: float) -> float:

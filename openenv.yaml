@@ -108,19 +108,19 @@ tasks:
     name: Trend-Following Execution
     difficulty: easy
     description: Capture an upward trend with disciplined entries and exits.
-    reward_range: [0.05, 0.95]
+    reward_range: [0.01, 0.99]
 
   - id: task-002-mean-reversion
     name: Mean-Reversion Swing
     difficulty: medium
     description: Buy pullbacks and trim into rebound zones.
-    reward_range: [0.05, 0.95]
+    reward_range: [0.01, 0.99]
 
   - id: task-003-risk-managed-hedge
     name: Risk-Managed Event Trading
     difficulty: hard
     description: Navigate volatile downside with risk-aware position sizing.
-    reward_range: [0.05, 0.95]
+    reward_range: [0.01, 0.99]
 
   - id: task-004-portfolio-rebalance
     name: Dynamic Portfolio Rebalancing
@@ -128,4 +128,4 @@ tasks:
     description: >
       Rebalance a concentrated equity position toward a 40% target while
       maintaining a 30% minimum cash buffer. Sell into strength systematically.
-    reward_range: [0.05, 0.95]
+    reward_range: [0.01, 0.99]

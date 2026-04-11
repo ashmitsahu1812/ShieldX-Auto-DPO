@@ -166,7 +166,6 @@ def grade(task_id: str = ""):
         "task_id": env.task.get("id"),
         "score": score,
         "task_score": score,
-        "done": bool(env.done),
     }
 
 
@@ -186,9 +185,12 @@ def grader(task_id: str = ""):
         score = float(env._strict_unit_clamp(env.evaluate_task()))
         scores.append({"task_id": tid, "score": score})
 
+    aggregate = float(sum(item["score"] for item in scores) / float(max(len(scores), 1)))
     return {
         "scores": scores,
-        "all_in_range": all(0.0 < float(s["score"]) < 1.0 for s in scores),
+        # Keep a plain scalar for validators expecting a single score field.
+        "score": aggregate,
+        "task_score": aggregate,
     }
 
 @app.post("/step")

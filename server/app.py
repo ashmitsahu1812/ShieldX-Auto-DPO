@@ -1,27 +1,27 @@
-from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from .environment import ShieldXEnv
-from typing import Dict, Any
-import os
+from __future__ import annotations
+
 import json
+import os
+from typing import Any, Dict
 
-app = FastAPI(title="ShieldX: Autonomous DPO Dashboard")
+from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
 
-# Mount static files
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+from .environment import StockExchangeEnv
+from .models import MarketObservation, MarketState, TradeAction
 
-env_registry: Dict[str, ShieldXEnv] = {}
+app = FastAPI(title="OpenEnv Stock Exchange Simulator")
 
-def get_session_env(session_id: str = "default") -> ShieldXEnv:
+
+env_registry: Dict[str, StockExchangeEnv] = {}
+
+
+def get_session_env(session_id: str = "default") -> StockExchangeEnv:
     if session_id not in env_registry:
-        env_registry[session_id] = ShieldXEnv()
+        env_registry[session_id] = StockExchangeEnv()
     return env_registry[session_id]
 
-def _model_dump(obj: Any) -> Any:
-    if obj is None:
-        return None
+
+def _dump(obj: Any) -> Any:
     if hasattr(obj, "model_dump"):
         return obj.model_dump()
     if hasattr(obj, "dict"):
@@ -29,329 +29,242 @@ def _model_dump(obj: Any) -> Any:
     return obj
 
 
-def _attach_metadata(observation: Any, metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    OpenEnv's HTTP response models forbid extra top-level keys on /reset and /step
-    (ResetResponse/StepResponse use extra="forbid"). If we want to return extra
-    debug/scoring info, it must be placed inside the observation payload.
+def _schema(model: Any) -> Dict[str, Any]:
+    if hasattr(model, "model_json_schema"):
+        return model.model_json_schema()
+    return model.schema()  # pragma: no cover
 
-    We follow OpenEnv's Observation convention by using `metadata`.
-    """
-    obs_dict = _model_dump(observation) or {}
-    if not isinstance(obs_dict, dict):
-        # Best-effort: ensure observation is JSON-object-like.
-        obs_dict = {"value": obs_dict}
-    # Do not overwrite user-provided metadata if present; merge instead.
-    existing = obs_dict.get("metadata")
-    if isinstance(existing, dict):
-        merged = dict(existing)
-        merged.update(metadata or {})
-        obs_dict["metadata"] = merged
-    else:
-        obs_dict["metadata"] = metadata or {}
-    return obs_dict
+
+def _reference_grade(task_id: str) -> Dict[str, Any]:
+    env = StockExchangeEnv(task_id=task_id)
+    env.reset(task_id=task_id)
+    task = env.task
+
+    for idx, ideal_decision in enumerate(task["ideal_actions"]):
+        if env.done:
+            break
+        qty = 12 if ideal_decision in {"buy", "sell"} else 0
+        action = {
+            "symbol": task["symbol"],
+            "decision": ideal_decision,
+            "quantity": qty,
+            "confidence": 0.9,
+            "rationale": f"reference_step_{idx + 1}",
+        }
+        env.step(action)
+
+    score = float(env.evaluate_task())
+    return {"task_id": task_id, "score": score, "task_score": score}
 
 
 @app.get("/")
-def read_index():
-    return FileResponse(os.path.join(static_dir, "index.html"))
+def root() -> Dict[str, str]:
+    return {
+        "name": "stock_exchange_env",
+        "status": "running",
+        "message": "Use /reset, /step, /state to interact.",
+    }
+
 
 @app.get("/health")
-def health():
-    # openenv validate (runtime) expects status="healthy"
-    # IMPORTANT: OpenEnv HealthResponse forbids extra fields.
+def health() -> Dict[str, str]:
     return {"status": "healthy"}
 
+
 @app.get("/metadata")
-def metadata():
-    # IMPORTANT: OpenEnv EnvironmentMetadata forbids extra fields.
-    # Keep this payload aligned with openenv.core.env_server.types.EnvironmentMetadata.
+def metadata() -> Dict[str, Any]:
     return {
-        "name": "shieldx_privacy_env",
-        "description": "Autonomous Data Privacy Officer (DPO) Environment.",
+        "name": "stock_exchange_env",
+        "description": "Real-world stock execution and risk-management simulation.",
         "readme_content": None,
         "version": "1.0.0",
         "author": "ashmitsahu",
         "documentation_url": None,
     }
 
+
 @app.get("/schema")
-def schema():
-    # Return JSON schemas for action/observation/state.
-    # We keep this light and compatible with both Pydantic v1 and v2.
-    from .models import PrivacyAction, PrivacyObservation
-
-    def _schema(model):
-        if hasattr(model, "model_json_schema"):
-            return model.model_json_schema()
-        return model.schema()
-
-    obs_schema = _schema(PrivacyObservation)
+def schema() -> Dict[str, Any]:
     return {
-        "action": _schema(PrivacyAction),
-        "observation": obs_schema,
-        "state": obs_schema,
+        "action": _schema(TradeAction),
+        "observation": _schema(MarketObservation),
+        "state": _schema(MarketState),
     }
 
+
 @app.post("/mcp")
-def mcp(payload: Dict[str, Any]):
-    # Minimal JSON-RPC compatible response for runtime validators.
+def mcp(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "jsonrpc": "2.0",
         "id": payload.get("id"),
         "result": {"status": "ok"},
     }
 
+
 @app.post("/reset")
 def reset(
     payload: Dict[str, Any] = Body(default_factory=dict),
-    task_id: str = "task-001-pii-scrubber",
-):
-    # OpenEnv reset requests send an (often empty) JSON object body.
-    # We also allow selecting the task via query param or body extras.
-    body_task = None
-    if isinstance(payload, dict):
-        body_task = payload.get("task_id") or payload.get("taskId") or payload.get("task")
-    chosen_task = str(body_task or task_id)
+    task_id: str = "task-001-trend-following",
+) -> Dict[str, Any]:
+    body_task = payload.get("task_id") or payload.get("taskId") or payload.get("task")
+    selected_task = str(body_task or task_id)
 
-    env = ShieldXEnv(task_id=chosen_task)
+    env = StockExchangeEnv(task_id=selected_task)
     env_registry["default"] = env
-    obs = env.reset()
-    initial = float(env.MIN_STRICT_SCORE)
-    observation = _attach_metadata(
-        obs,
-        {
-            "score": initial,
-            "task_score": initial,
-            "cumulative_reward": initial,
-            "explanation": "Environment reset.",
-        },
-    )
+    obs = env.reset(task_id=selected_task)
+
     return {
-        "observation": observation,
-        "reward": initial,
+        "observation": _dump(obs),
+        "reward": float(env.task_score),
         "done": False,
     }
 
-@app.get("/state")
-def state():
+
+@app.post("/step")
+def step(action: Dict[str, Any] = Body(default_factory=dict)) -> Dict[str, Any]:
     env = get_session_env()
-    safe_score = float(env._strict_unit_clamp(env.evaluate_task()))
-    payload = _attach_metadata(
-        env.state(),
-        {
-            "score": safe_score,
-            "task_score": safe_score,
-            "cumulative_reward": safe_score,
-            "explanation": "Current environment state.",
-        },
-    )
-    # Compatibility: expose score fields at top-level for legacy parsers.
-    payload["score"] = safe_score
-    payload["task_score"] = safe_score
-    payload["cumulative_reward"] = safe_score
-    return payload
+    payload = action.get("action", action) if isinstance(action, dict) else {}
+
+    obs, reward, done, _info = env.step(payload)
+    return {
+        "observation": _dump(obs),
+        "reward": float(reward),
+        "done": bool(done),
+    }
+
+
+@app.get("/state")
+def state() -> Dict[str, Any]:
+    env = get_session_env()
+    return _dump(env.state())
 
 
 @app.get("/grade")
-def grade(task_id: str = ""):
-    # Allow direct grading by task_id without requiring prior reset() calls.
+def grade(task_id: str = "") -> Dict[str, Any]:
     if task_id:
-        env = ShieldXEnv(task_id=str(task_id))
-        env.reset(task_id=str(task_id))
-    else:
-        env = get_session_env()
-    score = float(env._strict_unit_clamp(env.evaluate_task()))
+        return _reference_grade(str(task_id))
+
+    env = get_session_env()
+    score = float(env.evaluate_task())
     return {
-        "task_id": env.task.get("id"),
+        "task_id": env.task["id"],
         "score": score,
         "task_score": score,
     }
 
 
 @app.get("/grader")
-def grader(task_id: str = ""):
-    # Compatibility endpoint:
-    # - with task_id => single-task score
-    # - without task_id => deterministic score for all tasks
+def grader(task_id: str = "") -> Dict[str, Any]:
     if task_id:
-        return grade(task_id=task_id)
+        return _reference_grade(str(task_id))
 
-    scores = []
-    for task in ShieldXEnv.TASKS:
-        tid = str(task.get("id", ""))
-        env = ShieldXEnv(task_id=tid)
-        env.reset(task_id=tid)
-        score = float(env._strict_unit_clamp(env.evaluate_task()))
-        scores.append({"task_id": tid, "score": score})
-
-    aggregate = float(sum(item["score"] for item in scores) / float(max(len(scores), 1)))
+    scores = [_reference_grade(task["id"]) for task in StockExchangeEnv.TASKS]
+    aggregate = sum(item["score"] for item in scores) / float(max(len(scores), 1))
     return {
         "scores": scores,
-        # Keep a plain scalar for validators expecting a single score field.
-        "score": aggregate,
-        "task_score": aggregate,
+        "score": float(aggregate),
+        "task_score": float(aggregate),
     }
 
-@app.post("/step")
-def step(action: Dict[str, Any] = Body(default_factory=dict)):
-    env = get_session_env()
-    # OpenEnv's HTTP StepRequest wraps the action as {"action": {...}}.
-    # Accept both wrapped and unwrapped payloads.
-    unwrapped = action
-    if isinstance(action, dict) and isinstance(action.get("action"), dict):
-        unwrapped = action.get("action")  # type: ignore[assignment]
-
-    obs, reward, done, info = env.step(unwrapped)
-    observation = _attach_metadata(obs, info or {})
-    return {
-        "observation": observation,
-        "reward": reward,
-        "done": done,
-    }
 
 @app.websocket("/ws")
-async def ws(websocket: WebSocket):
-    """
-    Minimal OpenEnv WebSocket protocol compatible with openenv.core.EnvClient:
-    - Client sends {"type": "reset"|"step"|"state"|"close", "data": {...}}
-    - Server responds {"type": "observation"|"state"|"error", "data": {...}}
-    """
+async def ws(websocket: WebSocket) -> None:
     await websocket.accept()
-    env = ShieldXEnv()
+    env = StockExchangeEnv()
 
     try:
         while True:
             raw = await websocket.receive_text()
             try:
-                msg = json.loads(raw)
+                message = json.loads(raw)
             except Exception as exc:
-                # Never send type="error" because EnvClient will raise and some
-                # evaluators convert that into a 0.0 task score.
-                initial = float(env.MIN_STRICT_SCORE)
-                observation = _attach_metadata(
-                    env.state(),
-                    {
-                        "score": initial,
-                        "task_score": initial,
-                        "cumulative_reward": initial,
-                        "explanation": f"Invalid JSON: {exc}",
-                    },
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "observation",
+                            "data": {
+                                "observation": _dump(env.state()),
+                                "reward": float(env.task_score),
+                                "done": True,
+                                "error": f"invalid_json:{exc}",
+                            },
+                        }
+                    )
                 )
-                await websocket.send_text(json.dumps({
-                    "type": "observation",
-                    "data": {
-                        "observation": observation,
-                        "reward": initial,
-                        "done": True,
-                    },
-                }))
                 continue
 
-            msg_type = msg.get("type", "")
-            data = msg.get("data", {}) or {}
+            msg_type = message.get("type", "")
+            data = message.get("data", {}) or {}
 
-            try:
-                if msg_type == "reset":
-                    # Allow task selection via reset kwargs.
-                    task_id = data.get("task_id") or data.get("taskId") or data.get("task")
-                    obs = env.reset(task_id=task_id)
-                    initial = float(env.MIN_STRICT_SCORE)
-                    observation = _attach_metadata(
-                        obs,
+            if msg_type == "reset":
+                tid = data.get("task_id") or data.get("taskId") or data.get("task")
+                obs = env.reset(task_id=str(tid) if tid else None)
+                await websocket.send_text(
+                    json.dumps(
                         {
-                            "score": initial,
-                            "task_score": initial,
-                            "cumulative_reward": initial,
-                            "explanation": "Environment reset.",
-                        },
+                            "type": "observation",
+                            "data": {
+                                "observation": _dump(obs),
+                                "reward": float(env.task_score),
+                                "done": False,
+                            },
+                        }
                     )
-                    payload = {
-                        "observation": observation,
-                        "reward": initial,
-                        "done": False,
-                    }
-                    await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
-
-                elif msg_type == "step":
-                    # Accept both wrapped and unwrapped payloads, matching HTTP StepRequest.
-                    unwrapped = data
-                    if isinstance(data, dict) and isinstance(data.get("action"), dict):
-                        unwrapped = data.get("action")  # type: ignore[assignment]
-                    obs, reward, done, info = env.step(unwrapped)
-                    observation = _attach_metadata(obs, info or {})
-                    payload = {
-                        "observation": observation,
-                        "reward": float(reward),
-                        "done": bool(done),
-                    }
-                    await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
-
-                elif msg_type == "state":
-                    state_obj = env.state()
-                    safe_score = float(env._strict_unit_clamp(env.evaluate_task()))
-                    state_payload = _attach_metadata(
-                        state_obj,
-                        {
-                            "score": safe_score,
-                            "task_score": safe_score,
-                            "cumulative_reward": safe_score,
-                            "explanation": "Current environment state.",
-                        },
-                    )
-                    state_payload["score"] = safe_score
-                    state_payload["task_score"] = safe_score
-                    state_payload["cumulative_reward"] = safe_score
-                    await websocket.send_text(json.dumps({"type": "state", "data": state_payload}))
-
-                elif msg_type == "close":
-                    break
-
-                else:
-                    initial = float(env.MIN_STRICT_SCORE)
-                    observation = _attach_metadata(
-                        env.state(),
-                        {
-                            "score": initial,
-                            "task_score": initial,
-                            "cumulative_reward": initial,
-                            "explanation": f"Unknown message type: {msg_type}",
-                        },
-                    )
-                    await websocket.send_text(json.dumps({
-                        "type": "observation",
-                        "data": {
-                            "observation": observation,
-                            "reward": initial,
-                            "done": True,
-                        },
-                    }))
-            except Exception as exc:
-                initial = float(env.MIN_STRICT_SCORE)
-                observation = _attach_metadata(
-                    env.state(),
-                    {
-                        "score": initial,
-                        "task_score": initial,
-                        "cumulative_reward": initial,
-                        "explanation": f"Internal error: {exc}",
-                    },
                 )
-                await websocket.send_text(json.dumps({
-                    "type": "observation",
-                    "data": {
-                        "observation": observation,
-                        "reward": initial,
-                        "done": True,
-                    },
-                }))
+
+            elif msg_type == "step":
+                payload = data.get("action", data) if isinstance(data, dict) else {}
+                obs, reward, done, _ = env.step(payload)
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "observation",
+                            "data": {
+                                "observation": _dump(obs),
+                                "reward": float(reward),
+                                "done": bool(done),
+                            },
+                        }
+                    )
+                )
+
+            elif msg_type == "state":
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "state",
+                            "data": _dump(env.state()),
+                        }
+                    )
+                )
+
+            elif msg_type == "close":
+                break
+
+            else:
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "observation",
+                            "data": {
+                                "observation": _dump(env.state()),
+                                "reward": float(env.task_score),
+                                "done": True,
+                                "error": f"unknown_type:{msg_type}",
+                            },
+                        }
+                    )
+                )
     except WebSocketDisconnect:
         pass
 
-def main():
+
+def main() -> None:
     import uvicorn
+
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("server.app:app", host="0.0.0.0", port=port, reload=False)
+
 
 if __name__ == "__main__":
     main()

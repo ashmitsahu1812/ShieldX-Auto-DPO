@@ -1,137 +1,151 @@
 ---
-title: ShieldX - Autonomous DPO
-emoji: 🛡️
-colorFrom: blue
-colorTo: indigo
+title: OpenEnv Stock Exchange RL
+emoji: 📈
+colorFrom: green
+colorTo: blue
 sdk: docker
 app_port: 8000
 pinned: false
 tags:
   - openenv
-  - privacy
+  - finance
   - rl
 ---
 
-# 🛡️ ShieldX: The Autonomous Data Privacy Officer (DPO)
+# OpenEnv Stock Exchange Environment
 
-ShieldX is a real-world Reinforcement Learning (RL) environment designed for **Autonomous Data Privacy Governance**. It provides a high-fidelity simulation of an AI agent managing privacy compliance across complex data flows, standardized for the **Asia-South-1 (India)** region.
+This project is a real-world OpenEnv environment for **equity execution and risk management**.  
+An agent acts as a junior trader that must place buy/sell/hold orders while balancing return, drawdown, and position concentration.
 
----
+## Why this is real-world
 
-## 📐 Environment Design & MDP
+This environment models work that humans actually do:
+- Tactical order execution
+- Risk budgeting (drawdown + concentration)
+- Decision logging with rationale for auditability
 
-ShieldX models the complexity of privacy engineering as a standard Markov Decision Process (MDP):
-- **Observation Space**: Indian region database fragments, system logs, and DPDP Act policy contexts.
-- **Action Space**: Privacy-preserving operations (`redact`, `delete`, `export`, `retain`, `notify`).
-- **Reward Function**: Dense signals mapped to strict (0, 1) bounds for optimal RL stability.
+## OpenEnv API
 
-### **Reward & Scoring Logic**
-To ensure compatibility with all automated evaluators, ShieldX enforces **Strict (0, 1) Bounds**:
-- **Baseline Buffer**: All rewards and scores are clamped between **`0.11`** and **`0.89`**.
-- **Correct Compliance**: Significant positive step reward (e.g., `+0.25` for PII removal).
-- **Compliance Violations**: Penalties are mapped to the baseline `0.11` to maintain strict positivity.
+Implemented endpoints:
+- `POST /reset`
+- `POST /step`
+- `GET /state`
+- `GET /health`
+- `GET /schema`
+- `GET /metadata`
+- `GET /grade`
+- `GET /grader`
 
----
+OpenEnv manifest: [openenv.yaml](/Users/ashmitsahu/Desktop/scalarxmeta/openenv.yaml)
 
-## 🎯 Task Library (ShieldX-Benchmark)
+## Typed Models
 
-| Task ID | Name | Difficulty | Region | Goal |
-|:---|:---|:---|:---|:---|
-| `task-001` | **PII Scrubber** | Easy | India | Redact Names, Emails, SSNs, and IPs from support tickets. |
-| `task-002` | **DSAR Export** | Medium | India | Fulfill a Subject Access Request without revealing third-party PII. |
-| `task-003` | **Selective Erasure** | Medium | India | Process 'Right to Erasure' while retaining billing for auditing. |
-| `task-004` | **Border Audit** | Hard | India | Inspect international data transfers for valid SCC signatures. |
-| `task-005` | **Breach Report** | Hard | India | Analyze exfiltration logs to identify all affected User IDs. |
+- Action: [TradeAction](/Users/ashmitsahu/Desktop/scalarxmeta/server/models.py)
+- Observation: [MarketObservation](/Users/ashmitsahu/Desktop/scalarxmeta/server/models.py)
+- Reward: [MarketReward](/Users/ashmitsahu/Desktop/scalarxmeta/server/models.py)
+- State: [MarketState](/Users/ashmitsahu/Desktop/scalarxmeta/server/models.py)
 
----
+## Tasks (Easy → Medium → Hard)
 
-## 🏗️ Technical Architecture
+1. `task-001-trend-following` (easy)
+2. `task-002-mean-reversion` (medium)
+3. `task-003-risk-managed-hedge` (hard)
 
-- **RL Engine**: Python-based Gymnasium core with stateful validation and logic-based grading.
-- **API Surface**: Full FastAPI implementation of the OpenEnv spec (`/reset`, `/step`, `/state`).
-- **Cyber-DPO HUD**: A custom **Neon-Glassmorphism Dashboard** built with Vanilla HTML/CSS/JS, featuring CRT scanlines and real-time telemetry.
-- **Logging Compliance**: Integrated `inference.py` script emitting mandatory `[START]`, `[STEP]`, and `[END]` logging tags.
+Each task has:
+- deterministic price path
+- objective constraints
+- ideal action sequence used by the agent grader
 
----
+Task definitions: [tasks.py](/Users/ashmitsahu/Desktop/scalarxmeta/server/tasks.py)
 
-## 🚀 Setup & Deployment
+## Grading + Reward Design
 
-### **Quick Start (Hugging Face / Docker)**
+Step reward uses weighted components:
+- action alignment vs task objective
+- per-step portfolio return component
+- risk component (position concentration + drawdown penalties)
+
+Task score uses deterministic trajectory grading:
+- average action alignment
+- final return vs task target/min range
+- max drawdown adherence
+- completion signal
+
+Grader implementation: [graders.py](/Users/ashmitsahu/Desktop/scalarxmeta/server/graders.py)
+
+All step rewards and task scores are kept strictly in `(0, 1)` using safe normalization (`0.11` to `0.89`) to satisfy strict validators.
+
+## Baseline Inference Script
+
+Root script: [inference.py](/Users/ashmitsahu/Desktop/scalarxmeta/inference.py)
+
+Requirements satisfied:
+- filename is exactly `inference.py` in repo root
+- uses OpenAI client for LLM calls
+- reads env vars:
+  - `API_BASE_URL` (default present)
+  - `MODEL_NAME` (default present)
+  - `HF_TOKEN` (required)
+- emits strict stdout format:
+  - `[START]`
+  - `[STEP]`
+  - `[END]`
+
+## Reproducible Baseline Scores
+
+Deterministic baseline policy scores (reference grader):
+- `task-001-trend-following`: `0.7993`
+- `task-002-mean-reversion`: `0.7366`
+- `task-003-risk-managed-hedge`: `0.8354`
+
+You can verify with:
 ```bash
-docker build -t shieldx .
-docker run -p 8000:8000 shieldx
+curl -s http://127.0.0.1:8000/grader
 ```
 
-### **Running the RL Baseline**
-1. Set your `HF_TOKEN` in a `.env` file.
-2. Run the official inference script:
+## RL Component
+
+A lightweight RL pipeline is included in `rl/`:
+- env wrapper: [shieldx_gym_env.py](/Users/ashmitsahu/Desktop/scalarxmeta/rl/shieldx_gym_env.py)
+- tabular Q-learning trainer: [train_qlearning.py](/Users/ashmitsahu/Desktop/scalarxmeta/rl/train_qlearning.py)
+- evaluator: [evaluate_qlearning.py](/Users/ashmitsahu/Desktop/scalarxmeta/rl/evaluate_qlearning.py)
+- discretization helpers: [qlearning_utils.py](/Users/ashmitsahu/Desktop/scalarxmeta/rl/qlearning_utils.py)
+
+## Local Setup
+
+Install dependencies:
 ```bash
+python3 -m pip install -r requirements.txt
+```
+
+Run API server:
+```bash
+uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+Run inference:
+```bash
+export HF_TOKEN="your_token"
 python3 inference.py
 ```
 
-Baseline (deterministic fallback) scores from a clean run:
-- `task-001-pii-scrubber`: `0.3000`
-- `task-002-dsar-export`: `0.2200`
-- `task-003-selective-erasure`: `0.3000`
-- `task-004-cross-border-audit`: `0.2200`
-- `task-005-breach-reporting`: `0.7000`
-
-### **Training a Native RL Agent (Q-learning)**
-ShieldX now includes a from-scratch RL pipeline in `rl/` (custom Gym wrapper + tabular Q-learning trainer).
-
-Train:
+Run OpenEnv validation:
 ```bash
-python3 -m rl.train_qlearning --episodes 5000 --output artifacts/qlearning_policy.json
+openenv validate
 ```
 
-Evaluate:
+## Docker
+
+Build:
 ```bash
-python3 -m rl.evaluate_qlearning --policy artifacts/qlearning_policy.json --episodes 100
+docker build -t stock-openenv .
 ```
 
-Core files:
-- `rl/shieldx_gym_env.py`: Discrete-action Gym wrapper over `ShieldXEnv`
-- `rl/train_qlearning.py`: Q-learning training loop
-- `rl/evaluate_qlearning.py`: Per-task evaluation and success metrics
-- `rl/qlearning_utils.py`: state discretization + policy serialization
-
-### **Training Deep RL Agents (SB3 PPO / DQN)**
-You can also train neural policies using Stable-Baselines3:
-
-Install SB3 locally (optional):
+Run:
 ```bash
-python3 -m pip install -r requirements-rl.txt
+docker run -p 8000:8000 stock-openenv
 ```
 
-Train PPO:
-```bash
-python3 -m rl.train_sb3 --algo ppo --timesteps 100000 --n-envs 4 --model-out artifacts/ppo_model.zip --meta-out artifacts/ppo_meta.json
-```
+## Hugging Face Space
 
-Train DQN:
-```bash
-python3 -m rl.train_sb3 --algo dqn --timesteps 100000 --n-envs 1 --model-out artifacts/dqn_model.zip --meta-out artifacts/dqn_meta.json
-```
-
-Evaluate saved model:
-```bash
-python3 -m rl.evaluate_sb3 --algo ppo --model artifacts/ppo_model.zip --meta artifacts/ppo_meta.json --episodes 100
-```
-
-SB3 files:
-- `rl/train_sb3.py`: Unified PPO/DQN trainer
-- `rl/evaluate_sb3.py`: Saved-model evaluator for PPO/DQN
-
-### **Compliance Check**
-ShieldX is 100% compliant with the OpenEnv Hackathon requirements. All logs generated by `inference.py` are formatted for automated scoring.
-
----
-
-### **Environment Variables**
-- `HF_TOKEN` or `OPENAI_API_KEY`: **Mandatory** for model-based inference.
-- `API_BASE_URL`: Default is `https://router.huggingface.co/v1`.
-- `MODEL_NAME`: Default is `Qwen/Qwen2.5-Coder-32B-Instruct`.
-- `ENV_URL`: Default is `http://localhost:7860` (the inference script auto-starts the local server if needed).
-
----
-*ShieldX is a production-ready RL environment localized for the India Data Privacy landscape.*
+This repository is configured for Docker Spaces with `app_port: 8000` and OpenEnv tags.

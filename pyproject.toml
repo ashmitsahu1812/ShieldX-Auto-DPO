@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shieldx"
+name = "openenv-stock-exchange"
 version = "0.1.0"
-description = "ShieldX: Autonomous Data Privacy Officer RL Environment"
+description = "OpenEnv Stock Exchange RL Environment"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
-    { name = "ShieldX Team" }
+    { name = "Ashmit Sahu" }
 ]
 dependencies = [
     "fastapi",

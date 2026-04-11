@@ -1,30 +1,89 @@
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Literal
 
-class PrivacyAction(BaseModel):
-    """Action model for the DPO Agent."""
-    operation: Literal["redact", "delete", "export", "retain", "notify"] = Field(
-        ..., description="The privacy operation to perform."
-    )
-    target: str = Field(..., description="The field name, record ID, or user ID to operate on.")
-    legal_basis: Optional[str] = Field(
-        "", description="The legal justification (e.g., 'GDPR Art. 6', 'Financial retention law')."
-    )
-    reasoning: Optional[str] = Field("", description="Brief thought process for the action.")
 
-class PrivacyObservation(BaseModel):
-    """Observation model for the DPO Agent."""
+class TradeAction(BaseModel):
+    """Action issued by an agent to execute a market order."""
+
+    symbol: str = Field(..., description="Ticker symbol to trade.")
+    decision: Literal["buy", "sell", "hold"] = Field(
+        ..., description="Trading decision for current market tick."
+    )
+    quantity: int = Field(
+        default=0,
+        ge=0,
+        le=1000,
+        description="Order size in shares. Ignored for hold.",
+    )
+    confidence: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Model confidence in this decision.",
+    )
+    rationale: str = Field(default="", description="Short justification for auditability.")
+
+
+class MarketObservation(BaseModel):
+    """Observation returned after each step."""
+
     task_id: str
-    instruction: str
-    data_buffer: str = Field(..., description="The current view of the data being audited.")
-    policy_context: str = Field(..., description="Company privacy policy and regional laws.")
-    region: str = Field(..., description="The data storage region (e.g., 'EU-West-1', 'US-East-1').")
+    task_name: str
+    difficulty: Literal["easy", "medium", "hard"]
+    symbol: str
+    objective: str
+    day_index: int
+    max_days: int
+    current_price: float
+    next_price: float
+    price_window: List[float]
+    momentum_1d: float
+    momentum_3d: float
+    cash: float
+    position: int
+    avg_entry_price: float
+    portfolio_value: float
+    peak_portfolio_value: float
+    drawdown: float
+    last_decision: str
+    metadata: Dict[str, float | str] = Field(default_factory=dict)
+
+
+class MarketState(BaseModel):
+    """Internal state snapshot exposed via /state."""
+
+    task_id: str
+    symbol: str
+    day_index: int
     step_count: int
     max_steps: int
+    cash: float
+    position: int
+    avg_entry_price: float
+    portfolio_value: float
+    peak_portfolio_value: float
+    drawdown: float
+    cumulative_reward: float
+    task_score: float
+    done: bool
 
-class PrivacyReward(BaseModel):
-    """Reward model scoring the compliance action."""
-    value: float = Field(..., description="The reward value assigned by the grader.")
-    partial_score: float = Field(..., description="Value before normalization.")
-    logic_explanation: str = Field(..., description="Why this reward was given.")
-    done: bool = False
+
+class MarketReward(BaseModel):
+    """Structured reward explanation for grader transparency."""
+
+    reward: float = Field(..., description="Step reward normalized to strict (0,1).")
+    task_score: float = Field(..., description="Current task score in strict (0,1).")
+    action_alignment: float
+    return_component: float
+    risk_component: float
+    explanation: str
+    done: bool
+
+
+class TaskGrade(BaseModel):
+    """Task-level deterministic grade."""
+
+    task_id: str
+    score: float
+    task_score: float

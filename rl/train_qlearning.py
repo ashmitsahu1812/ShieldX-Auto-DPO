@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 from typing import Dict, Tuple
 
@@ -19,30 +21,24 @@ def evaluate_policy(env: ShieldXGymEnv, q_table: Dict[Tuple[int, ...], np.ndarra
             state = discretize_observation(obs, env.n_tasks, env.n_operations)
             row = get_q_row(q_table, state, env.action_space.n)
             action = int(np.argmax(row))
-
             obs, reward, done, truncated, _ = env.step(action)
-            total_reward += reward
+            total_reward += float(reward)
 
     return total_reward / float(max(episodes, 1))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train a Q-learning policy for ShieldX")
-    parser.add_argument("--episodes", type=int, default=5000, help="Training episodes")
-    parser.add_argument("--alpha", type=float, default=0.15, help="Learning rate")
-    parser.add_argument("--gamma", type=float, default=0.97, help="Discount factor")
-    parser.add_argument("--epsilon", type=float, default=1.0, help="Initial exploration rate")
-    parser.add_argument("--epsilon-decay", type=float, default=0.999, help="Exploration decay per episode")
-    parser.add_argument("--epsilon-min", type=float, default=0.05, help="Minimum exploration rate")
-    parser.add_argument("--max-steps", type=int, default=5, help="Max episode steps")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--log-interval", type=int, default=250, help="Print progress every N episodes")
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="artifacts/qlearning_policy.json",
-        help="Path to save learned Q-table",
-    )
+    parser = argparse.ArgumentParser(description="Train Q-learning on stock exchange OpenEnv")
+    parser.add_argument("--episodes", type=int, default=3000)
+    parser.add_argument("--alpha", type=float, default=0.15)
+    parser.add_argument("--gamma", type=float, default=0.97)
+    parser.add_argument("--epsilon", type=float, default=1.0)
+    parser.add_argument("--epsilon-decay", type=float, default=0.998)
+    parser.add_argument("--epsilon-min", type=float, default=0.05)
+    parser.add_argument("--max-steps", type=int, default=7)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--log-interval", type=int, default=200)
+    parser.add_argument("--output", type=str, default="artifacts/qlearning_policy.json")
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -50,7 +46,7 @@ def main() -> None:
 
     q_table: Dict[Tuple[int, ...], np.ndarray] = {}
     epsilon = args.epsilon
-    episode_returns = []
+    returns = []
 
     for episode in range(1, args.episodes + 1):
         obs, _ = env.reset()
@@ -69,8 +65,8 @@ def main() -> None:
 
             next_obs, reward, done, truncated, _ = env.step(action)
             next_state = discretize_observation(next_obs, env.n_tasks, env.n_operations)
-
             next_row = get_q_row(q_table, next_state, env.action_space.n)
+
             bootstrap = 0.0 if (done or truncated) else float(np.max(next_row))
             td_target = float(reward) + args.gamma * bootstrap
             row[action] += args.alpha * (td_target - row[action])
@@ -79,11 +75,10 @@ def main() -> None:
             total_reward += float(reward)
 
         epsilon = max(args.epsilon_min, epsilon * args.epsilon_decay)
-        episode_returns.append(total_reward)
+        returns.append(total_reward)
 
         if episode % args.log_interval == 0:
-            window = episode_returns[-args.log_interval :]
-            avg_return = sum(window) / float(len(window))
+            avg_return = sum(returns[-args.log_interval :]) / float(args.log_interval)
             print(
                 f"[TRAIN] episode={episode} avg_return={avg_return:.4f} "
                 f"epsilon={epsilon:.4f} states={len(q_table)}"

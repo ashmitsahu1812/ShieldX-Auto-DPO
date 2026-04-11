@@ -1,20 +1,18 @@
 spec_version: 1
-name: shieldx_privacy_env
+name: stock_exchange_env
 type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
 version: "1.0.0"
 description: >
-  Autonomous Data Privacy Officer (DPO) Environment.
-  Agents must audit database logs, perform redactions, and manage
-  legal compliance (GDPR/CCPA) across multiple tasks.
+  Real-world stock execution and risk-management simulation for training
+  trading agents with deterministic market scenarios.
 author: ashmitsahu
 tags:
   - openenv
-  - privacy
-  - compliance
-  - governance
+  - finance
+  - stock-market
   - rl
 
 entrypoint:
@@ -27,74 +25,64 @@ interface:
     step: /step
     state: /state
     health: /health
+    grader: /grader
 
 observation_space:
   type: object
-  description: >
-    Current audit context including raw data buffer and legal policy context.
   properties:
     task_id:
       type: string
-    instruction:
+    symbol:
       type: string
-    data_buffer:
+    objective:
       type: string
-    policy_context:
-      type: string
-    region:
-      type: string
-    step_count:
+    day_index:
       type: integer
-    max_steps:
+    max_days:
       type: integer
+    current_price:
+      type: number
+    next_price:
+      type: number
+    cash:
+      type: number
+    position:
+      type: integer
+    portfolio_value:
+      type: number
+    drawdown:
+      type: number
 
 action_space:
   type: object
-  description: >
-    Data privacy operations.
   properties:
-    operation:
+    symbol:
       type: string
-      enum: [redact, delete, export, retain, notify]
-    target:
+    decision:
       type: string
-    legal_basis:
-      type: string
-    reasoning:
+      enum: [buy, sell, hold]
+    quantity:
+      type: integer
+    confidence:
+      type: number
+    rationale:
       type: string
 
 tasks:
-  - id: task-001-pii-scrubber
-    name: PII Discovery and Redaction
-    description: Scan logs and redact Name, Email, SSN, and IP.
+  - id: task-001-trend-following
+    name: Trend-Following Execution
     difficulty: easy
-    max_steps: 5
+    description: Capture an upward trend with disciplined exits.
     reward_range: [0.11, 0.89]
 
-  - id: task-002-dsar-export
-    name: Subject Access Request (DSAR)
-    description: Export specific user data without leakage.
+  - id: task-002-mean-reversion
+    name: Mean-Reversion Swing
     difficulty: medium
-    max_steps: 5
+    description: Buy pullbacks and trim into rebound zones.
     reward_range: [0.11, 0.89]
 
-  - id: task-003-selective-erasure
-    name: Selective Erasure (Retain vs Delete)
-    description: Delete profile but keep billing history for taxes.
-    difficulty: medium
-    max_steps: 5
-    reward_range: [0.11, 0.89]
-
-  - id: task-004-cross-border-audit
-    name: Cross-Border Compliance Audit
-    description: Detect and audit non-SCC data transfers to the US.
+  - id: task-003-risk-managed-hedge
+    name: Risk-Managed Event Trading
     difficulty: hard
-    max_steps: 5
-    reward_range: [0.11, 0.89]
-
-  - id: task-005-breach-reporting
-    name: Automated Breach Disclosure
-    description: Analyze SQLi logs and identify all affected IDs.
-    difficulty: hard
-    max_steps: 5
+    description: Manage volatile downside with risk-aware position sizing.
     reward_range: [0.11, 0.89]

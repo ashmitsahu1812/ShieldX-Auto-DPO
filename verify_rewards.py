@@ -1,26 +1,31 @@
-import os
-from server.environment import ShieldXEnv
-from server.models import PrivacyAction
+from server.environment import StockExchangeEnv
 
-def test_rewards(actions_list):
-    env = ShieldXEnv()
-    env.reset()
-    total_reward = 0.0
-    for action_data in actions_list:
-        action = PrivacyAction(**action_data)
-        _, reward, _, _ = env.step(action)
-        total_reward += reward
-        print(f"Step Result: {reward:.4f}, Running Total: {total_reward:.4f}")
-    
-    print(f"Final Cumulative Reward: {total_reward:.4f}")
-    assert 0.0 < total_reward < 1.0, f"FAILED: Reward {total_reward} out of range!"
-    print("Verification PASSED")
+
+def run_rollout(task_id: str) -> float:
+    env = StockExchangeEnv(task_id=task_id)
+    env.reset(task_id=task_id)
+    task = env.task
+
+    total = 0.0
+    for decision in task["ideal_actions"]:
+        if env.done:
+            break
+        qty = 10 if decision in {"buy", "sell"} else 0
+        _, reward, _, _ = env.step(
+            {
+                "symbol": task["symbol"],
+                "decision": decision,
+                "quantity": qty,
+                "confidence": 0.9,
+                "rationale": "verify",
+            }
+        )
+        total += reward
+    return total
+
 
 if __name__ == "__main__":
-    print("--- Test 1: Perfect Play ---")
-    perfect_actions = [{"operation": "redact", "target": "John Doe", "reasoning": "test"}] * 5
-    test_rewards(perfect_actions)
-
-    print("\n--- Test 2: Zero Play ---")
-    zero_actions = [{"operation": "retain", "target": "nothing", "reasoning": "test"}] * 5
-    test_rewards(zero_actions)
+    for task in StockExchangeEnv.TASKS:
+        score = run_rollout(task["id"])
+        print(f"task={task['id']} total_reward={score:.4f}")
+        assert 0.0 < score < 10.0

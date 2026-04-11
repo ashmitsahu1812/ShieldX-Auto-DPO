@@ -1,74 +1,57 @@
-import json
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-TASKS = [
+
+TASKS: List[Dict[str, Any]] = [
     {
-        "id": "task-001-pii-scrubber",
-        "name": "PII Discovery and Redaction",
+        "id": "task-001-trend-following",
+        "name": "Trend-Following Execution",
         "difficulty": "easy",
-        "instruction": "Scan the provided support ticket log. Redact any PII found (Name, Email, SSN, IP Address).",
-        "data": "Ticket #102: User 'John Doe' (email: john.d@gmail.com, SSN: 999-00-1111) is reporting a login error from IP 192.168.1.1. Also, customer 'Jane Smith' at 10.0.0.45 requested a password reset.",
-        "region": "Asia-South-1 (India)",
-        "policy": "DPDP Act Compliance: All PII must be redacted in non-production logs for data fiduciary safety.",
-        "ground_truth": ["John Doe", "john.d@gmail.com", "999-00-1111", "192.168.1.1", "Jane Smith", "10.0.0.45"]
+        "symbol": "NOVA",
+        "objective": "Capture an intraday uptrend while avoiding overtrading.",
+        "prices": [100.0, 102.0, 104.0, 107.0, 109.0, 112.0],
+        "ideal_actions": ["buy", "buy", "hold", "hold", "sell"],
+        "initial_cash": 10000.0,
+        "max_steps": 5,
+        "target_return": 0.06,
+        "min_return": -0.02,
+        "max_drawdown": 0.06,
+        "max_position_ratio": 0.85,
     },
     {
-        "id": "task-002-dsar-export",
-        "name": "Subject Access Request (DSAR)",
+        "id": "task-002-mean-reversion",
+        "name": "Mean-Reversion Swing",
         "difficulty": "medium",
-        "instruction": "A customer (ID: USER_778) has requested all their data. Filter the database logs and export only their specific entries.",
-        "data": json.dumps([
-            {"user_id": "USER_778", "activity": "login", "timestamp": "2026-04-10T10:00:00", "ip": "1.1.1.1"},
-            {"user_id": "USER_123", "activity": "purchase", "timestamp": "2026-04-10T10:05:00", "ip": "2.2.2.2"},
-            {"user_id": "USER_778", "activity": "update_profile", "timestamp": "2026-04-10T10:10:00", "ip": "1.1.1.1"},
-            {"user_id": "USER_778", "activity": "logout", "timestamp": "2026-04-10T10:15:00", "ip": "1.1.1.1"}
-        ]),
-        "region": "Asia-South-1 (India)",
-        "policy": "Right of Access: Data principals must receive a copy of their personal data only.",
-        "ground_truth": ["USER_778"]
+        "symbol": "KITE",
+        "objective": "Buy weakness and reduce exposure into recovery spikes.",
+        "prices": [100.0, 96.0, 92.0, 95.0, 99.0, 103.0, 97.0],
+        "ideal_actions": ["buy", "buy", "hold", "sell", "sell", "buy"],
+        "initial_cash": 12000.0,
+        "max_steps": 6,
+        "target_return": 0.08,
+        "min_return": -0.04,
+        "max_drawdown": 0.12,
+        "max_position_ratio": 0.75,
     },
     {
-        "id": "task-003-selective-erasure",
-        "name": "The Right to be Forgotten (Selective)",
-        "difficulty": "medium",
-        "instruction": "Fulfill the erasure request for 'Alice'. Delete her account profile but RETAIN her billing record for auditing purposes.",
-        "data": json.dumps({
-            "profile": {"name": "Alice Smith", "age": 28, "pref": "Dark Mode", "joined": "2024-01-01"},
-            "billing": {"invoice_id": "INV-2026-001", "amount": 99.99, "status": "paid", "due_date": "2026-05-01"}
-        }),
-        "region": "Asia-South-1 (India)",
-        "policy": "Retention Exception: Retention is permitted for financial/tax compliance under Indian Law.",
-        "ground_truth_delete": ["profile"],
-        "ground_truth_retain": ["billing"]
-    },
-    {
-        "id": "task-004-cross-border-audit",
-        "name": "Cross-Border Transfer Compliance",
+        "id": "task-003-risk-managed-hedge",
+        "name": "Risk-Managed Event Trading",
         "difficulty": "hard",
-        "instruction": "Detect if Indian user data is being transferred abroad without proper SCC flag. If found, RETAIN and mark for Audit.",
-        "data": json.dumps([
-            {"src": "IN", "dst": "US", "id": "X-001", "scc": True, "size": "1.2MB"},
-            {"src": "IN", "dst": "EU", "id": "X-002", "scc": False, "size": "0.5MB"},
-            {"src": "IN", "dst": "SG", "id": "X-003", "scc": False, "size": "4.8MB"}
-        ]),
-        "region": "Asia-South-1 (India)",
-        "policy": "Data Sovereignty: Explicit SCCs are mandatory for international data transfers.",
-        "ground_truth": ["X-002", "X-003"]
+        "symbol": "ORCA",
+        "objective": "Navigate volatility with disciplined de-risking and selective re-entry.",
+        "prices": [120.0, 118.0, 111.0, 106.0, 114.0, 109.0, 103.0, 99.0],
+        "ideal_actions": ["hold", "sell", "hold", "buy", "sell", "sell", "hold"],
+        "initial_cash": 15000.0,
+        "max_steps": 7,
+        "target_return": 0.04,
+        "min_return": -0.08,
+        "max_drawdown": 0.08,
+        "max_position_ratio": 0.55,
     },
-    {
-        "id": "task-005-breach-reporting",
-        "name": "Automated Breach Disclosure",
-        "difficulty": "hard",
-        "instruction": "Identify all distinct users affected by the SQL injection attack in this log snippet.",
-        "data": "LOG: 2026-04-10 12:00:05 - SQL_INJECTION - SELECT * FROM users WHERE id IN (101, 102, 105, 107, 110, 112) - EXFILTRATED",
-        "region": "Asia-South-1 (India)",
-        "policy": "CERT-In Notification: Identify IDs requiring disclosure within the 6-hour reporting window.",
-        "ground_truth": ["101", "102", "105", "107", "110", "112"]
-    }
 ]
 
+
 def get_task(task_id: str) -> Dict[str, Any]:
-    for t in TASKS:
-        if t["id"] == task_id:
-            return t
+    for task in TASKS:
+        if task["id"] == task_id:
+            return task
     return TASKS[0]

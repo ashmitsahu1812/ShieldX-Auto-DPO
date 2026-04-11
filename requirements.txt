@@ -4,6 +4,7 @@ pydantic
 openai
 httpx
 python-dotenv
+websockets
 gymnasium
 numpy
 jinja2

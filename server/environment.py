@@ -233,7 +233,10 @@ class StockExchangeEnv:
             cash_ratio = self.cash / max(next_value, 1.0)
             cash_penalty = max(0.0, (float(min_cash_ratio) - cash_ratio) * 2.0)
 
-        risk_component = max(0.01, 1.0 - concentration_penalty - drawdown_penalty - cash_penalty)
+        risk_component = max(
+            0.01,
+            min(0.99, 1.0 - concentration_penalty - drawdown_penalty - cash_penalty),
+        )
 
         raw = (0.45 * align) + (0.35 * return_component) + (0.2 * risk_component)
         # Apply confidence multiplier — rewards calibrated confidence

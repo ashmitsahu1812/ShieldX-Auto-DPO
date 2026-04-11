@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .environment import StockExchangeEnv
+from .graders import strict_score
 from .models import MarketObservation, MarketState, TradeAction
 
 app = FastAPI(title="OpenEnv Stock Exchange Simulator")
@@ -58,7 +59,7 @@ def _reference_grade(task_id: str) -> Dict[str, Any]:
         }
         env.step(action)
 
-    score = float(env.evaluate_task())
+    score = strict_score(float(env.evaluate_task()))
     return {"task_id": task_id, "score": score, "task_score": score}
 
 
@@ -159,10 +160,19 @@ def reset(
     env_registry["default"] = env
     obs = env.reset(task_id=selected_task)
 
+    ts = strict_score(float(env.task_score))
+    reset_info = {
+        "score": ts,
+        "task_score": ts,
+        "cumulative_reward": float(env.cumulative_reward),
+    }
     return {
         "observation": _dump(obs),
         "reward": float(env.task_score),
         "done": False,
+        "score": ts,
+        "task_score": ts,
+        "info": reset_info,
     }
 
 
@@ -171,11 +181,16 @@ def step(action: Dict[str, Any] = Body(default_factory=dict)) -> Dict[str, Any]:
     env = get_session_env()
     payload = action.get("action", action) if isinstance(action, dict) else {}
 
-    obs, reward, done, _info = env.step(payload)
+    obs, reward, done, info = env.step(payload)
+    ts = strict_score(float(info.get("task_score", info.get("score", env.task_score))))
+    step_info = {**info, "score": ts, "task_score": ts}
     return {
         "observation": _dump(obs),
         "reward": float(reward),
         "done": bool(done),
+        "score": ts,
+        "task_score": ts,
+        "info": step_info,
     }
 
 
@@ -191,7 +206,7 @@ def grade(task_id: str = "") -> Dict[str, Any]:
         return _reference_grade(str(task_id))
 
     env = get_session_env()
-    score = float(env.evaluate_task())
+    score = strict_score(float(env.evaluate_task()))
     return {
         "task_id": env.task["id"],
         "score": score,
@@ -206,10 +221,11 @@ def grader(task_id: str = "") -> Dict[str, Any]:
 
     scores = [_reference_grade(task["id"]) for task in StockExchangeEnv.TASKS]
     aggregate = sum(item["score"] for item in scores) / float(max(len(scores), 1))
+    agg = strict_score(float(aggregate))
     return {
         "scores": scores,
-        "score": float(aggregate),
-        "task_score": float(aggregate),
+        "score": agg,
+        "task_score": agg,
     }
 
 
@@ -245,6 +261,7 @@ async def ws(websocket: WebSocket) -> None:
             if msg_type == "reset":
                 tid = data.get("task_id") or data.get("taskId") or data.get("task")
                 obs = env.reset(task_id=str(tid) if tid else None)
+                ts = strict_score(float(env.task_score))
                 await websocket.send_text(
                     json.dumps(
                         {
@@ -253,6 +270,8 @@ async def ws(websocket: WebSocket) -> None:
                                 "observation": _dump(obs),
                                 "reward": float(env.task_score),
                                 "done": False,
+                                "score": ts,
+                                "task_score": ts,
                             },
                         }
                     )
@@ -260,7 +279,8 @@ async def ws(websocket: WebSocket) -> None:
 
             elif msg_type == "step":
                 payload = data.get("action", data) if isinstance(data, dict) else {}
-                obs, reward, done, _ = env.step(payload)
+                obs, reward, done, info = env.step(payload)
+                ts = strict_score(float(info.get("task_score", info.get("score", env.task_score))))
                 await websocket.send_text(
                     json.dumps(
                         {
@@ -269,6 +289,8 @@ async def ws(websocket: WebSocket) -> None:
                                 "observation": _dump(obs),
                                 "reward": float(reward),
                                 "done": bool(done),
+                                "score": ts,
+                                "task_score": ts,
                             },
                         }
                     )

@@ -1,3 +1,9 @@
+"""
+Baseline OpenEnv inference: OpenAI client + HTTP env (reset/step/state).
+
+Required env: HF_TOKEN or OPENAI_API_KEY, optional API_BASE_URL, MODEL_NAME, ENV_URL.
+Stdout: [START], [STEP], [END] with fields success, steps, score, rewards (fixed order).
+"""
 import asyncio
 import json
 import os
@@ -74,10 +80,14 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    """Emit [END] line — field order: success, steps, score, rewards (evaluator-sensitive)."""
     success_str = "true" if success else "false"
     reward_str = ",".join(f"{_strict(r):.2f}" for r in rewards)
-    _safe_print(f"[END] success={success_str} steps={steps} rewards={reward_str}")
+    s = _strict(score)
+    _safe_print(
+        f"[END] success={success_str} steps={steps} score={s:.4f} rewards={reward_str}"
+    )
 
 
 async def _wait_for_env(base_url: str, timeout_s: float = 10.0) -> bool:
@@ -199,6 +209,20 @@ def _llm_action(
         return fallback
 
 
+def _episode_score_from_payload(payload: Dict[str, Any]) -> float:
+    """Prefer task_score / score on payload, info, or observation.metadata."""
+    for source in (payload, payload.get("info") or {}):
+        for key in ("task_score", "score"):
+            if key in source and source[key] is not None:
+                return _strict(source[key])
+    obs = payload.get("observation") or {}
+    meta = obs.get("metadata") or {}
+    for key in ("task_score", "score"):
+        if key in meta and meta[key] is not None:
+            return _strict(meta[key])
+    return STRICT_MIN
+
+
 async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
     log_start(task=task_id, env="stock_exchange_env", model=MODEL_NAME)
 
@@ -206,6 +230,7 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
     steps_taken = 0
     last_error: Optional[str] = None
     action_history: List[str] = []
+    last_payload: Dict[str, Any] = {}
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as http:
@@ -213,6 +238,7 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
             reset_payload = reset_res.json()
             obs = reset_payload.get("observation", reset_payload)
             done = bool(reset_payload.get("done", False))
+            last_payload = reset_payload
 
             max_steps = int(obs.get("max_days", 5)) + 1
             for step in range(1, max_steps + 1):
@@ -224,6 +250,7 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
 
                 step_res = await http.post(f"{env_url}/step", json={"action": action})
                 result = step_res.json()
+                last_payload = result
 
                 obs = result.get("observation", result)
                 reward = _strict(result.get("reward", STRICT_MIN))
@@ -255,9 +282,12 @@ async def run_task(client: OpenAI, env_url: str, task_id: str) -> None:
             steps_taken = 1
             log_step(step=1, action="hold:0", reward=STRICT_MIN, done=True, error=last_error or "env_error")
 
-        avg_score = sum(rewards) / float(max(len(rewards), 1))
-        success = avg_score >= 0.3
-        log_end(success=success, steps=steps_taken, rewards=rewards)
+        # Episode score from env grader — strictly inside (0, 1), never 0.0 or 1.0
+        ep_score = _episode_score_from_payload(last_payload)
+        mean_r = sum(rewards) / float(max(len(rewards), 1))
+        success = mean_r >= 0.3
+        final_score = _strict(ep_score)
+        log_end(success=success, steps=steps_taken, score=final_score, rewards=rewards)
 
 
 async def main() -> None:

@@ -79,8 +79,8 @@ class MarketState(BaseModel):
     portfolio_value: float
     peak_portfolio_value: float
     drawdown: float
-    cumulative_reward: float
-    task_score: float
+    cumulative_reward: float = Field(..., gt=0.0, lt=1.0, description="Running reward aggregate in (0, 1).")
+    task_score: float = Field(..., gt=0.0, lt=1.0, description="Episode task score in (0, 1).")
     done: bool
     market_regime: str = "unknown"
     volatility: float = 0.0
@@ -89,8 +89,8 @@ class MarketState(BaseModel):
 class MarketReward(BaseModel):
     """Structured reward explanation for grader transparency."""
 
-    reward: float = Field(..., description="Step reward in strict (0.05, 0.95).")
-    task_score: float = Field(..., description="Current task score in strict (0.05, 0.95).")
+    reward: float = Field(..., gt=0.0, lt=1.0, description="Step reward strictly between 0 and 1.")
+    task_score: float = Field(..., gt=0.0, lt=1.0, description="Current task score strictly between 0 and 1.")
     action_alignment: float
     return_component: float
     risk_component: float
@@ -103,5 +103,5 @@ class TaskGrade(BaseModel):
     """Task-level deterministic grade."""
 
     task_id: str
-    score: float
-    task_score: float
+    score: float = Field(..., gt=0.0, lt=1.0)
+    task_score: float = Field(..., gt=0.0, lt=1.0)

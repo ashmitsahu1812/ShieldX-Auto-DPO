@@ -140,7 +140,7 @@ Task score (episode-level) uses:
 - Episode completion (5%)
 - Rebalancing accuracy bonus for task-004 (15%, replaces some alignment weight)
 
-All rewards and scores are in the strict open interval **(0.05, 0.95)**.
+All rewards and episode **task scores** are clamped to the strict open interval **(0.01, 0.99)** (compatible with validators that require scores strictly inside `(0, 1)`).
 
 ## Baseline Inference Script
 

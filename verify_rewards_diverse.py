@@ -7,7 +7,7 @@ if __name__ == "__main__":
         env.reset(task_id=task["id"])
 
         actions = ["hold", "buy", "sell", "hold", "buy", "sell", "hold", "sell", "hold"]
-        info = {"score": 0.0}
+        info = {"score": 0.01}
         done = False
         for decision in actions:
             if env.done:

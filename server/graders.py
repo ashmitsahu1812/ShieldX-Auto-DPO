@@ -1,3 +1,4 @@
+import math
 from typing import Any, Dict, List
 
 
@@ -6,10 +7,12 @@ MAX_STRICT_SCORE = 0.99
 
 
 def strict_score(value: float) -> float:
-    """Clamp a raw score into the strict open interval (0.05, 0.95)."""
+    """Clamp a raw score into the strict open interval (0.01, 0.99), never 0.0 or 1.0."""
     try:
         v = float(value)
     except (TypeError, ValueError):
+        return MIN_STRICT_SCORE
+    if math.isnan(v) or math.isinf(v):
         return MIN_STRICT_SCORE
     if v <= 0.0:
         return MIN_STRICT_SCORE

@@ -1,121 +1,118 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShieldX | Autonomous DPO Dashboard</title>
-    <link rel="stylesheet" href="./static/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-</head>
-<body class="dark-theme">
-    <div class="glass-background"></div>
-    <div class="scanlines"></div>
-    
-    <main class="dashboard-container">
-        <div class="system-status-bar">
-            <div class="status-item"><span class="blink">●</span> NODE: ASIA-SOUTH-1</div>
-            <div class="status-item">LATENCY: 24ms</div>
-            <div class="status-item">KERNEL: v5.4.1-SHIELD</div>
-            <div class="status-item">ENCRYPTION: AES-256</div>
-            <div class="status-item">SECURE: YES</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenEnv Stock Exchange Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OpenEnv Finance</p>
+          <h1>Stock Exchange Simulation Console</h1>
+          <p id="task-objective" class="subtitle">Load a task to begin trading simulation.</p>
         </div>
+        <div class="topbar-stats">
+          <div class="stat-pill"><span>Task Score</span><strong id="task-score">0.00</strong></div>
+          <div class="stat-pill"><span>Cumulative</span><strong id="cum-reward">0.00</strong></div>
+        </div>
+      </header>
 
-        <header class="top-bar glass">
-            <div class="logo-section">
-                <span class="shield-icon">🛡️</span>
-                <h1>ShieldX <span class="badge">PRO</span></h1>
-            </div>
-            <div class="session-info">
-                <div id="region-tag" class="status-chip">Region: EU-WEST-1</div>
-                <div id="step-counter" class="status-chip">Step: 0/5</div>
-                <div id="score-display" class="score-chip">Score: 0.00</div>
-            </div>
-        </header>
+      <section class="controls card">
+        <div class="row">
+          <label>
+            Task
+            <select id="task-select"></select>
+          </label>
+          <label>
+            Decision
+            <select id="decision-select">
+              <option value="buy">buy</option>
+              <option value="sell">sell</option>
+              <option value="hold">hold</option>
+            </select>
+          </label>
+          <label>
+            Quantity
+            <input id="qty-input" type="number" min="0" step="1" value="10" />
+          </label>
+          <label>
+            Confidence
+            <input id="confidence-input" type="number" min="0" max="1" step="0.05" value="0.70" />
+          </label>
+        </div>
+        <div class="row actions">
+          <button id="reset-btn" class="btn secondary">Reset Task</button>
+          <button id="step-btn" class="btn primary">Execute Step</button>
+          <span id="status-text" class="status-text">Idle</span>
+        </div>
+      </section>
 
-        <section class="grid-layout">
-            <!-- Left Side: Activity -->
-            <div class="main-content">
-                <!-- Monitor -->
-                <div class="panel monitor-panel glass">
-                    <div class="panel-header">
-                        <h2>🔍 Live Data Monitor</h2>
-                        <div id="task-badge" class="task-badge">Task 001</div>
-                    </div>
-                    <div class="data-viewport" id="data-buffer">
-                        <div class="loading-spinner"></div>
-                    </div>
-                    <div class="panel-footer">
-                        <p id="env-instruction">Initializing ShieldX environment...</p>
-                    </div>
-                </div>
+      <section class="metrics-grid">
+        <article class="metric card">
+          <h3>Current Price</h3>
+          <p id="current-price">-</p>
+        </article>
+        <article class="metric card">
+          <h3>Portfolio Value</h3>
+          <p id="portfolio-value">-</p>
+        </article>
+        <article class="metric card">
+          <h3>Cash</h3>
+          <p id="cash-value">-</p>
+        </article>
+        <article class="metric card">
+          <h3>Position</h3>
+          <p id="position-value">-</p>
+        </article>
+        <article class="metric card">
+          <h3>Drawdown</h3>
+          <p id="drawdown-value">-</p>
+        </article>
+        <article class="metric card">
+          <h3>Progress</h3>
+          <p id="progress-value">0 / 0</p>
+        </article>
+      </section>
 
-                <!-- History -->
-                <div class="panel history-panel glass">
-                    <div class="panel-header">
-                        <h2>📜 Audit Trace</h2>
-                    </div>
-                    <div class="history-list" id="audit-history">
-                        <!-- Action logs load here -->
-                    </div>
-                </div>
-            </div>
+      <section class="charts-grid">
+        <article class="card chart-card">
+          <div class="chart-head">
+            <h3>Price Path</h3>
+            <span id="symbol-chip" class="chip">-</span>
+          </div>
+          <svg id="price-chart" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
+        </article>
 
-            <!-- Right Side: Controls & Intel -->
-            <div class="sidebar">
-                <!-- Intelligence -->
-                <div class="panel intel-panel glass">
-                    <div class="panel-header">
-                        <h2>⚖️ Policy & Regulation</h2>
-                    </div>
-                    <div class="policy-viewport" id="policy-context">
-                        <!-- Policies load here -->
-                    </div>
-                </div>
+        <article class="card chart-card">
+          <div class="chart-head">
+            <h3>Equity Curve</h3>
+            <span class="chip">Portfolio</span>
+          </div>
+          <svg id="equity-chart" viewBox="0 0 600 240" preserveAspectRatio="none"></svg>
+        </article>
+      </section>
 
-                <!-- Action Console -->
-                <div class="panel console-panel glass">
-                    <div class="panel-header">
-                        <h2>⚙️ Compliance Console</h2>
-                    </div>
-                    <div class="console-controls">
-                        <div class="control-group">
-                            <label>Operation</label>
-                            <div class="radio-buttons">
-                                <label><input type="radio" name="operation" value="redact" checked> Redact</label>
-                                <label><input type="radio" name="operation" value="delete"> Delete</label>
-                                <label><input type="radio" name="operation" value="export"> Export</label>
-                                <label><input type="radio" name="operation" value="retain"> Retain</label>
-                            </div>
-                        </div>
-                        <div class="control-group">
-                            <label>Target</label>
-                            <input type="text" id="action-target" placeholder="Field, Value, or ID">
-                        </div>
-                        <div class="control-group">
-                            <label>Reasoning</label>
-                            <input type="text" id="action-reasoning" placeholder="Legal basis or logic...">
-                        </div>
-                        <button id="execute-btn" class="primary-btn">EXECUTE ACTION</button>
-                        
-                        <div class="task-switcher">
-                            <select id="task-select">
-                                <option value="task-001-pii-scrubber">Task 001: PII Scrubber</option>
-                                <option value="task-002-dsar-export">Task 002: DSAR Export</option>
-                                <option value="task-003-selective-erasure">Task 003: Selective Erasure</option>
-                                <option value="task-004-cross-border-audit">Task 004: Border Audit</option>
-                                <option value="task-005-breach-reporting">Task 005: Breach Report</option>
-                            </select>
-                            <button id="reset-btn" class="secondary-btn">INITIALIZE AUDIT</button>
-                        </div>
-                    </div>
-                    <div id="action-status" class="action-alert hidden"></div>
-                </div>
-            </div>
-        </section>
+      <section class="card">
+        <div class="chart-head">
+          <h3>Step Rewards</h3>
+          <span class="chip">Trajectory Signal</span>
+        </div>
+        <svg id="reward-chart" viewBox="0 0 1200 180" preserveAspectRatio="none"></svg>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <h3>Execution Log</h3>
+          <button id="clear-log-btn" class="btn ghost">Clear</button>
+        </div>
+        <div id="log-list" class="log-list"></div>
+      </section>
     </main>
 
-    <script src="./static/main.js"></script>
-</body>
+    <script src="/static/main.js"></script>
+  </body>
 </html>

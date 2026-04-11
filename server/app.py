@@ -5,11 +5,16 @@ import os
 from typing import Any, Dict
 
 from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .environment import StockExchangeEnv
 from .models import MarketObservation, MarketState, TradeAction
 
 app = FastAPI(title="OpenEnv Stock Exchange Simulator")
+
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 env_registry: Dict[str, StockExchangeEnv] = {}
@@ -58,12 +63,8 @@ def _reference_grade(task_id: str) -> Dict[str, Any]:
 
 
 @app.get("/")
-def root() -> Dict[str, str]:
-    return {
-        "name": "stock_exchange_env",
-        "status": "running",
-        "message": "Use /reset, /step, /state to interact.",
-    }
+def root() -> FileResponse:
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 
 @app.get("/health")
@@ -80,6 +81,23 @@ def metadata() -> Dict[str, Any]:
         "version": "1.0.0",
         "author": "ashmitsahu",
         "documentation_url": None,
+    }
+
+
+@app.get("/tasks")
+def tasks() -> Dict[str, Any]:
+    return {
+        "tasks": [
+            {
+                "id": task["id"],
+                "name": task["name"],
+                "difficulty": task["difficulty"],
+                "symbol": task["symbol"],
+                "objective": task["objective"],
+                "max_steps": task["max_steps"],
+            }
+            for task in StockExchangeEnv.TASKS
+        ]
     }
 
 

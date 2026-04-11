@@ -21,10 +21,10 @@ def strict_score(value: float) -> float:
 def action_alignment(decision: str, ideal: str) -> float:
     """
     Score how well the agent's decision matches the ideal action.
-    Perfect match = 1.0, opposite direction = 0.05, partial = 0.4.
+    Perfect match = 0.99, opposite direction = 0.05, partial = 0.4.
     """
     if decision == ideal:
-        return 1.0
+        return 0.99  # Changed from 1.0 to avoid exact boundary
     # Holding when action was needed — partial credit
     if decision == "hold" and ideal in {"buy", "sell"}:
         return 0.40
@@ -38,15 +38,19 @@ def action_alignment(decision: str, ideal: str) -> float:
 def confidence_multiplier(confidence: float, alignment: float) -> float:
     """
     Reward high confidence when correct, penalize high confidence when wrong.
-    Neutral at confidence=0.5.
+    Neutral at confidence=0.5. Clamped to avoid exceeding (0,1) bounds.
     """
     if alignment >= 0.9:
         # Correct decision: bonus for high confidence
-        return 1.0 + 0.15 * (confidence - 0.5)
+        mult = 1.0 + 0.15 * (confidence - 0.5)
     elif alignment <= 0.1:
         # Wrong decision: penalty for high confidence
-        return 1.0 - 0.20 * (confidence - 0.5)
-    return 1.0
+        mult = 1.0 - 0.20 * (confidence - 0.5)
+    else:
+        mult = 1.0
+    
+    # Clamp to safe range to avoid boundary issues
+    return max(0.02, min(0.98, mult))
 
 
 def normalize_return(task: Dict[str, Any], final_return: float) -> float:
@@ -55,18 +59,19 @@ def normalize_return(task: Dict[str, Any], final_return: float) -> float:
     if hi <= lo:
         return 0.5
     ratio = (final_return - lo) / (hi - lo)
-    return max(0.0, min(1.0, ratio))
+    # Clamp to avoid exact 0.0 or 1.0 boundaries
+    return max(0.01, min(0.99, ratio))
 
 
 def rebalance_component(task: Dict[str, Any], history: List[Dict[str, Any]]) -> float:
     """
     Extra grading component for rebalancing tasks.
     Measures how close the final position ratio is to the target.
-    Returns 0.0 for tasks without a target_position_ratio.
+    Returns 0.01 for tasks without a target_position_ratio.
     """
     target = task.get("target_position_ratio")
     if target is None or not history:
-        return 0.0
+        return 0.01  # Changed from 0.0 to avoid exact boundary
     last = history[-1]
     portfolio_value = float(last.get("portfolio_value", 1.0))
     position = float(last.get("executed_qty", 0))  # approximate
@@ -74,7 +79,9 @@ def rebalance_component(task: Dict[str, Any], history: List[Dict[str, Any]]) -> 
     position_value = position * price
     actual_ratio = position_value / max(portfolio_value, 1.0)
     distance = abs(actual_ratio - float(target))
-    return max(0.0, 1.0 - distance * 5.0)
+    result = 1.0 - distance * 5.0
+    # Clamp to avoid exact 0.0 or 1.0 boundaries
+    return max(0.01, min(0.99, result))
 
 
 def grade_episode(

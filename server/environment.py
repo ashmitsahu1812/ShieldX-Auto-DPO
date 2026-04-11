@@ -211,7 +211,7 @@ class StockExchangeEnv:
         conf_mult = confidence_multiplier(action.confidence, align)
 
         ret_pct = (next_value - prev_value) / max(prev_value, 1.0)
-        return_component = max(0.0, min(1.0, 0.5 + (ret_pct * 8.0)))
+        return_component = max(0.01, min(0.99, 0.5 + (ret_pct * 8.0)))
 
         position_value = self.position * self.next_price
         position_ratio = position_value / max(next_value, 1.0)
@@ -228,11 +228,11 @@ class StockExchangeEnv:
             cash_ratio = self.cash / max(next_value, 1.0)
             cash_penalty = max(0.0, (float(min_cash_ratio) - cash_ratio) * 2.0)
 
-        risk_component = max(0.0, 1.0 - concentration_penalty - drawdown_penalty - cash_penalty)
+        risk_component = max(0.01, 1.0 - concentration_penalty - drawdown_penalty - cash_penalty)
 
         raw = (0.45 * align) + (0.35 * return_component) + (0.2 * risk_component)
         # Apply confidence multiplier — rewards calibrated confidence
-        raw = max(0.0, min(1.0, raw * conf_mult))
+        raw = max(0.01, min(0.99, raw * conf_mult))
         reward = strict_score(raw)
 
         explanation = (

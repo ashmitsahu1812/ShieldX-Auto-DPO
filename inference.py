@@ -1,7 +1,6 @@
 import os
 import json
 import asyncio
-import logging
 import httpx
 import time
 from contextlib import suppress
@@ -13,7 +12,9 @@ from dotenv import load_dotenv
 load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-32B-Instruct")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 # OpenEnv Internal Address (during local/Docker execution)
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
@@ -23,24 +24,21 @@ def log_start(task: str, env: str, model: str):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str] = None):
-    err_str = f'"{error}"' if error else "null"
+    safe_action = str(action).replace("\n", " ").replace("\r", " ")
+    safe_error = None if error is None else str(error).replace("\n", " ").replace("\r", " ")
+    err_str = safe_error if safe_error else "null"
     done_str = "true" if done else "false"
-    # Increased precision to 4 decimal places to avoid 0.00 rounding
-    print(f"[STEP] step={step} action={action} reward={reward:.4f} done={done_str} error={err_str}", flush=True)
+    safe_reward = float(max(0.0, min(1.0, reward)))
+    print(
+        f"[STEP] step={step} action={safe_action} reward={safe_reward:.2f} done={done_str} error={err_str}",
+        flush=True,
+    )
 
 def log_end(success: bool, steps: int, rewards: List[float]):
     success_str = "true" if success else "false"
-    # Ensure empty rewards are padded with a baseline to meet the (0, 1) requirement
-    if not rewards:
-        rewards = [0.01]
-    
-    # Final safety clamp: Ensure NO reward is outside (0.01, 0.99)
-    safe_rewards = [max(0.01, min(0.99, r)) for r in rewards]
-    # Explicit per-task score for validator compatibility.
-    task_score = max(0.01, min(0.99, sum(safe_rewards)))
-    
-    reward_str = ",".join([f"{r:.4f}" for r in safe_rewards])
-    print(f"[END] success={success_str} steps={steps} score={task_score:.4f} rewards={reward_str}", flush=True)
+    safe_rewards = [float(max(0.0, min(1.0, r))) for r in rewards]
+    reward_str = ",".join([f"{r:.2f}" for r in safe_rewards])
+    print(f"[END] success={success_str} steps={steps} rewards={reward_str}", flush=True)
 
 
 async def _wait_for_env(url: str, timeout_s: float = 12.0) -> bool:
@@ -102,9 +100,6 @@ async def _maybe_start_local_server(url: str) -> tuple[Optional[asyncio.subproce
 
 # --- INFERENCE ENGINE ---
 async def get_privacy_action(client: OpenAI, obs: Dict[str, Any]) -> Dict[str, Any]:
-    if client is None:
-        return get_fallback_action(obs)
-
     prompt = f"""You are the ShieldX Data Privacy Officer (DPO) agent.
 AUDIT TASK: {obs['instruction']}
 
@@ -132,7 +127,7 @@ Output ONLY this JSON:
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=0.0,
             max_tokens=300
         )
         content = response.choices[0].message.content.strip()
@@ -197,34 +192,35 @@ async def run_task(client: OpenAI, task_id: str, env_url: str):
                 rewards.append(reward)
                 steps_taken = step
                 
-                log_step(step=step, action=action_dict["operation"] + ":" + action_dict["target"], reward=reward, done=done)
+                log_step(
+                    step=step,
+                    action=action_dict.get("operation", "") + ":" + str(action_dict.get("target", "")),
+                    reward=float(reward or 0.0),
+                    done=bool(done),
+                    error=None,
+                )
                 
                 if done:
                     break
                     
     except Exception as e:
-        print(f"[DEBUG] Task {task_id} encountered an error: {e}", flush=True)
-        # Fallback reward to stay within (0, 1) range
-        if not rewards:
-            rewards.append(0.12)
+        # No extra stdout allowed; END line will still be emitted in finally.
+        pass
     finally:
         # Adjusted threshold for the new Triple-Buffered baseline
         success = sum(rewards) > 0.15
         log_end(success=success, steps=steps_taken, rewards=rewards)
 
 async def main():
-    client = None
-    if API_KEY:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    else:
-        print("[INFO] HF_TOKEN/OPENAI_API_KEY not set. Running deterministic fallback policy.", flush=True)
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
     env_url = ENV_URL
     server_proc = None
     try:
         server_proc, env_url = await _maybe_start_local_server(env_url)
     except Exception as exc:
-        print(f"[DEBUG] Could not auto-start local env server: {exc}", flush=True)
+        # No extra stdout allowed; tasks will still emit START/END.
+        server_proc = None
     
     # Run all 5 tasks sequentially
     tasks = [
@@ -236,10 +232,7 @@ async def main():
     ]
     
     for tid in tasks:
-        try:
-            await run_task(client, tid, env_url)
-        except Exception as e:
-            print(f"Task {tid} failed: {e}")
+        await run_task(client, tid, env_url)
 
     if server_proc is not None:
         with suppress(ProcessLookupError):

@@ -1,7 +1,5 @@
-import os
-import json
 import math
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from .models import PrivacyAction, PrivacyObservation, PrivacyReward
 from .tasks import get_task, TASKS
 from .graders import grade_action
@@ -57,7 +55,11 @@ class ShieldXEnv:
                 return PrivacyAction(**default_payload)
         return PrivacyAction(**default_payload)
 
-    def reset(self) -> PrivacyObservation:
+    def reset(self, task_id: Optional[str] = None) -> PrivacyObservation:
+        # Allow evaluators/clients to select tasks via reset(task_id=...).
+        if task_id:
+            self.task_id = str(task_id)
+            self.task = get_task(self.task_id)
         self.step_count = 0
         self.total_reward = self.MIN_STRICT_SCORE
         self.current_score = self.MIN_STRICT_SCORE

@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from .environment import ShieldXEnv
 from typing import Dict, Any
 import os
+import json
 
 app = FastAPI(title="ShieldX: Autonomous DPO Dashboard")
 
@@ -92,7 +93,7 @@ def state():
     return env.state()
 
 @app.post("/step")
-def step(action: Dict[str, Any]):
+def step(action: Dict[str, Any] = Body(default_factory=dict)):
     env = get_session_env()
     obs, reward, done, info = env.step(action)
     return {
@@ -101,6 +102,96 @@ def step(action: Dict[str, Any]):
         "done": done,
         "info": info
     }
+
+def _model_dump(obj: Any) -> Any:
+    if obj is None:
+        return None
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    return obj
+
+@app.websocket("/ws")
+async def ws(websocket: WebSocket):
+    """
+    Minimal OpenEnv WebSocket protocol compatible with openenv.core.EnvClient:
+    - Client sends {"type": "reset"|"step"|"state"|"close", "data": {...}}
+    - Server responds {"type": "observation"|"state"|"error", "data": {...}}
+    """
+    await websocket.accept()
+    env = ShieldXEnv()
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except Exception as exc:
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "data": {"message": f"Invalid JSON: {exc}", "code": "INVALID_JSON"},
+                        }
+                    )
+                )
+                continue
+
+            msg_type = msg.get("type", "")
+            data = msg.get("data", {}) or {}
+
+            try:
+                if msg_type == "reset":
+                    # Allow task selection via reset kwargs.
+                    task_id = data.get("task_id") or data.get("taskId") or data.get("task")
+                    obs = env.reset(task_id=task_id)
+                    initial = float(env.MIN_STRICT_SCORE)
+                    payload = {
+                        "observation": _model_dump(obs),
+                        "reward": initial,
+                        "done": False,
+                        "info": {"score": initial, "cumulative_reward": initial, "explanation": "Environment reset."},
+                    }
+                    await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
+
+                elif msg_type == "step":
+                    obs, reward, done, info = env.step(data)
+                    payload = {
+                        "observation": _model_dump(obs),
+                        "reward": float(reward),
+                        "done": bool(done),
+                        "info": info,
+                    }
+                    await websocket.send_text(json.dumps({"type": "observation", "data": payload}))
+
+                elif msg_type == "state":
+                    state_obj = env.state()
+                    await websocket.send_text(json.dumps({"type": "state", "data": _model_dump(state_obj)}))
+
+                elif msg_type == "close":
+                    break
+
+                else:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "error",
+                                "data": {"message": f"Unknown message type: {msg_type}", "code": "INVALID_MESSAGE"},
+                            }
+                        )
+                    )
+            except Exception as exc:
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "data": {"message": str(exc), "code": "INTERNAL_ERROR"},
+                        }
+                    )
+                )
+    except WebSocketDisconnect:
+        pass
 
 def main():
     import uvicorn

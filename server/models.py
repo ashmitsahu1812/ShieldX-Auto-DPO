@@ -44,7 +44,7 @@ class MarketObservation(BaseModel):
     price_window: List[float] = Field(description="Last 5 prices including current.")
     momentum_1d: float = Field(description="1-day price return.")
     momentum_3d: float = Field(description="3-day price return.")
-    volatility: float = Field(default=0.0, description="Current step volatility (std of recent returns).")
+    volatility: float = Field(default=0.01, description="Current step volatility (std of recent returns).")
     market_regime: str = Field(default="unknown", description="Qualitative regime label for the task.")
 
     # Portfolio

@@ -105,9 +105,10 @@ def grade_episode(
     if max_drawdown <= 0.0:
         risk_component = 0.5
     else:
-        risk_component = 1.0 - max(0.0, min(1.0, drawdown / max_drawdown))
+        drawdown_ratio = max(0.0, min(1.0, drawdown / max_drawdown))
+        risk_component = max(0.01, min(0.99, 1.0 - drawdown_ratio))
 
-    completion = 1.0 if done else min(len(history) / float(max(task.get("max_steps", 1), 1)), 1.0)
+    completion = 0.99 if done else min(len(history) / float(max(task.get("max_steps", 1), 1)), 0.99)
 
     # Optional rebalancing bonus for task-004
     rebal = rebalance_component(task, history)

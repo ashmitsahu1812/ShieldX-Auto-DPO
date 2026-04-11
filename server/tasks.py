@@ -21,7 +21,7 @@ TASKS: List[Dict[str, Any]] = [
         "max_position_ratio": 0.85,
         "market_regime": "trending_up",
         # volatility per step (std of daily returns)
-        "volatility": [0.0, 0.020, 0.019, 0.028, 0.018, 0.027],
+        "volatility": [0.01, 0.020, 0.019, 0.028, 0.018, 0.027],
         "description": (
             "NOVA is in a clean uptrend. The agent should accumulate early, "
             "ride the trend, and exit near the peak. Penalizes selling too early "
@@ -46,7 +46,7 @@ TASKS: List[Dict[str, Any]] = [
         "max_drawdown": 0.12,
         "max_position_ratio": 0.75,
         "market_regime": "mean_reverting",
-        "volatility": [0.0, 0.040, 0.041, 0.032, 0.041, 0.040, 0.061],
+        "volatility": [0.01, 0.040, 0.041, 0.032, 0.041, 0.040, 0.061],
         "description": (
             "KITE drops sharply then recovers. The agent must buy the dip in two tranches, "
             "hold through the trough, trim into the recovery, then re-enter on the final dip. "
@@ -72,7 +72,7 @@ TASKS: List[Dict[str, Any]] = [
         "max_drawdown": 0.08,
         "max_position_ratio": 0.55,
         "market_regime": "volatile",
-        "volatility": [0.0, 0.017, 0.059, 0.046, 0.075, 0.044, 0.055, 0.039],
+        "volatility": [0.01, 0.017, 0.059, 0.046, 0.075, 0.044, 0.055, 0.039],
         "description": (
             "ORCA undergoes a sharp event-driven selloff followed by a dead-cat bounce and "
             "continued decline. The agent must avoid holding through the crash, exploit the "
@@ -102,7 +102,7 @@ TASKS: List[Dict[str, Any]] = [
         "target_position_ratio": 0.40,
         "min_cash_ratio": 0.30,
         "market_regime": "gradual_uptrend",
-        "volatility": [0.0, 0.020, 0.015, 0.029, 0.019, 0.034, 0.019, 0.029, 0.019, 0.034],
+        "volatility": [0.01, 0.020, 0.015, 0.029, 0.019, 0.034, 0.019, 0.029, 0.019, 0.034],
         "description": (
             "APEX is in a slow uptrend. The agent starts over-concentrated in equity (40 shares, "
             "only $5k cash). It must systematically sell into strength every other step to reach "

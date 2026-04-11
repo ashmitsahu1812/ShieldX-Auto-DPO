@@ -32,7 +32,7 @@ class StockExchangeEnv:
         self.initial_cash = self.cash
         # Support tasks that start with an existing position (e.g. rebalancing)
         self.position = int(self.task.get("initial_position", 0))
-        self.avg_entry_price = float(self.prices[0]) if self.position > 0 else 0.0
+        self.avg_entry_price = float(self.prices[0]) if self.position > 0 else 0.01
         self.done = False
         self.last_decision = "hold"
         self.cumulative_reward = MIN_STRICT_SCORE
@@ -66,15 +66,20 @@ class StockExchangeEnv:
     def _drawdown(self, portfolio_value: float) -> float:
         self.peak_portfolio_value = max(self.peak_portfolio_value, portfolio_value)
         if self.peak_portfolio_value <= 0.0:
-            return 0.0
-        return max(0.0, (self.peak_portfolio_value - portfolio_value) / self.peak_portfolio_value)
+            return 0.01  # Changed from 0.0
+        drawdown = (self.peak_portfolio_value - portfolio_value) / self.peak_portfolio_value
+        return max(0.01, drawdown)  # Changed from max(0.0, ...)
 
     def _momentum(self, lookback: int) -> float:
         start = max(0, self.day_index - lookback)
         base = self.prices[start]
         if base == 0.0:
-            return 0.0
-        return (self.current_price - base) / base
+            return 0.01  # Changed from 0.0
+        momentum = (self.current_price - base) / base
+        # Ensure momentum is never exactly 0.0
+        if momentum == 0.0:
+            return 0.01
+        return momentum
 
     def _price_window(self, window: int = 5) -> List[float]:
         start = max(0, self.day_index - window + 1)
@@ -195,7 +200,7 @@ class StockExchangeEnv:
                 self.cash += executed * price
                 self.position -= executed
                 if self.position == 0:
-                    self.avg_entry_price = 0.0
+                    self.avg_entry_price = 0.01
 
         return executed
 

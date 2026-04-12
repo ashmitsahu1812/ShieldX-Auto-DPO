@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -62,7 +62,7 @@ class MarketObservation(BaseModel):
     target_position_ratio: Optional[float] = Field(default=None, description="Target ratio for rebalancing tasks.")
     min_cash_ratio: Optional[float] = Field(default=None, description="Minimum cash ratio for rebalancing tasks.")
 
-    metadata: Dict[str, float | str] = Field(default_factory=dict)
+    metadata: Dict[str, Union[float, str]] = Field(default_factory=dict)
 
 
 class MarketState(BaseModel):
